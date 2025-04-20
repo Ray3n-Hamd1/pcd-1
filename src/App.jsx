@@ -6,6 +6,7 @@ import SignIn from "./Components/SignIn";
 import SignUp from "./Components/SignUp";
 import UploadImport from "./Components/UploadImport";
 import Import from "./Components/Import";
+import Upload from "./Components/Upload";
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
         <Route path="/SignUp" element={<SignUp />}></Route>
         <Route path="/UploadImport" element={<UploadImport />}></Route>
         <Route path="/Import" element={<Import />}></Route>
+        <Route path="/Upload" element={<Upload />}></Route>
       </Routes>
     </Router>
   );

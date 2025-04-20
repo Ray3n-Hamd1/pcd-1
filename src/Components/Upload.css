@@ -1,3 +1,4 @@
+/* General Styles */
 * {
     margin: 0;
     padding: 0;
@@ -13,6 +14,8 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    position: relative;
+    overflow: hidden;
   }
   
   /* Header Styles */
@@ -22,6 +25,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    z-index: 10;
   }
   
   /* Logo Styles */
@@ -83,142 +87,113 @@
     font-weight: bold;
   }
   
-  /* Main Content Styles */
-  .app-content {
+  /* Upload Content Styles */
+  .upload-content {
     display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     flex: 1;
+    padding: 40px;
+  }
+  
+  /* Dropzone Styles */
+  .dropzone {
+    border: 2px dashed #999;
+    border-radius: 10px;
     padding: 30px;
-    gap: 30px;
-  }
-  
-  /* File List Container Styles */
-  .file-list-container {
-    flex: 2;
-  }
-  
-  .section-title {
-    margin: 0 0 20px 0;
-    font-size: 24px;
-  }
-  
-  .section-description {
-    margin: 0 0 20px 0;
-    color: #666;
-  }
-  
-  /* Document Item Styles */
-  .document-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  
-  .document-item {
-    display: flex;
-    align-items: center;
-    padding: 15px;
-    background-color: white;
-    border-radius: 10px;
-    justify-content: space-between;
-  }
-  
-  .document-info {
-    display: flex;
-    align-items: center;
-  }
-  
-  .document-icon {
-    margin-right: 15px;
-  }
-  
-  .document-name {
-    font-weight: bold;
-    font-size: 16px;
-  }
-  
-  .document-name-red {
-    color: #E74C3C;
-  }
-  
-  .document-size {
-    color: #666;
-    font-size: 14px;
-  }
-  
-  .document-meta {
-    display: flex;
-    align-items: center;
-  }
-  
-  .document-date, .document-status {
-    margin-right: 15px;
-    color: #666;
-  }
-  
-  .document-select-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background-color: #172B4D;
-    border: none;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-  }
-  
-  /* Preview Container Styles */
-  .preview-container {
-    flex: 1;
-  }
-  
-  .file-preview {
-    background-color: white;
-    padding: 20px;
-    border-radius: 10px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100%;
-  }
-  
-  .preview-icon {
+    width: 100%;
+    max-width: 450px;
+    background-color: white;
+    transition: all 0.3s ease;
     margin-bottom: 20px;
   }
   
-  .preview-filename {
-    font-weight: bold;
-    font-size: 18px;
-    margin-bottom: 5px;
+  .dropzone-active {
+    border-color: #172B4D;
+    background-color: rgba(23, 43, 77, 0.05);
   }
   
-  .preview-filesize {
-    color: #666;
-    font-size: 16px;
-    margin-bottom: 30px;
+  .file-icon {
+    margin-bottom: 20px;
   }
   
-  /* Button Styles */
-  .btn-retrieve, .btn-decrypt {
-    border: none;
-    border-radius: 25px;
-    padding: 12px 20px;
-    font-weight: bold;
-    width: 100%;
-    cursor: pointer;
-    text-align: center;
-  }
-  
-  .btn-retrieve {
-    background-color: #F39C12;
+  .browse-button {
+    background-color: #172B4D;
     color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 8px 30px;
+    font-size: 16px;
+    cursor: pointer;
     margin-bottom: 15px;
   }
   
-  .btn-decrypt {
+  .dropzone-text {
+    color: #666;
+    text-align: center;
+  }
+  
+  /* Upload Button Styles */
+  .upload-button {
     background-color: #172B4D;
     color: white;
+    border: none;
+    border-radius: 25px;
+    padding: 12px 40px;
+    font-size: 18px;
+    cursor: pointer;
+    width: 100%;
+    max-width: 450px;
+    margin-bottom: 20px;
+  }
+  
+  .upload-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  
+  /* Upload Spinner Styles */
+  .upload-spinner {
+    margin: 10px 0;
+    display: flex;
+    justify-content: center;
+  }
+  
+  /* Upload Message Styles */
+  .upload-message {
+    font-size: 18px;
+    text-align: center;
+    margin-top: 10px;
+  }
+  
+  .highlight {
+    color: #3A559F;
+    font-weight: bold;
+  }
+  
+  /* Triangle Decoration Styles */
+  .triangle-decoration {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 500px;
+    height: 300px;
+    background-color: #F39C12;
+    clip-path: polygon(0 0, 0 100%, 100% 100%);
+    display: flex;
+    justify-content: flex-center;
+    align-items: flex-end;
+    z-index: 1;
+  }
+  
+  .triangle-logo {
+    margin-bottom: 50px;
+    margin-right: 10px;
   }
   
   /* Footer Styles */
@@ -226,5 +201,7 @@
     padding: 15px 30px;
     color: #666;
     font-size: 12px;
-    border-top: 1px solid #eee;
+    text-align: center;
+    position: relative;
+    z-index: 5;
   }
