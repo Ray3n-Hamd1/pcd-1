@@ -1,0 +1,258 @@
+/* SecureSafe.css */
+:root {
+    --primary-orange: #f5901e;
+    --primary-blue: #3048cc;
+    --background-gray: #f4f4f4;
+    --text-dark: #333333;
+  }
+  
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+  }
+  
+  .secure-safe-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* Header Styles */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background-color: var(--primary-orange);
+    color: white;
+  }
+  
+  .logo-container {
+    display: flex;
+    align-items: center;
+  }
+  
+  .logo {
+    width: 30px;
+    height: 30px;
+    margin-right: 8px;
+  }
+  
+  .brand-name {
+    font-weight: bold;
+    font-size: 16px;
+    letter-spacing: 1px;
+  }
+  
+  .search-bar {
+    display: flex;
+    align-items: center;
+    background-color: white;
+    border-radius: 15px;
+    padding: 5px 10px;
+    width: 250px;
+  }
+  
+  .search-bar input {
+    border: none;
+    outline: none;
+    flex-grow: 1;
+    padding: 5px;
+  }
+  
+  .search-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  
+  .user-profile {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+  }
+  
+  .user-icon {
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    background-color: white;
+    border-radius: 50%;
+  }
+  
+  .dropdown-arrow {
+    margin-left: 5px;
+    font-size: 12px;
+  }
+  
+  /* Main Content Styles */
+  .main-content {
+    flex-grow: 1;
+    background-color: var(--background-gray);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
+  
+  .upload-section {
+    text-align: center;
+    width: 100%;
+    max-width: 600px;
+  }
+  
+  .upload-heading {
+    font-size: 18px;
+    font-weight: normal;
+    color: var(--text-dark);
+    margin-bottom: 10px;
+  }
+  
+  .divider {
+    border-bottom: 1px solid #ccc;
+    margin: 20px 0;
+  }
+  
+  .document-icon-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 30px;
+  }
+  
+  .document-icon {
+    width: 80px;
+    height: 100px;
+    border: 2px solid #000;
+    border-radius: 5px;
+    position: relative;
+    background-color: white;
+  }
+  
+  .document-lines {
+    position: absolute;
+    top: 20px;
+    left: 15px;
+    right: 15px;
+    bottom: 20px;
+    border-top: 2px solid #000;
+    border-bottom: 2px solid #000;
+  }
+  
+  .document-lines:before, .document-lines:after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background-color: #000;
+  }
+  
+  .document-lines:before {
+    top: 33%;
+  }
+  
+  .document-lines:after {
+    top: 66%;
+  }
+  
+  .action-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 50px;
+  }
+  
+  .upload-button, .import-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  
+  .icon-container {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 10px;
+    border: 2px solid var(--primary-blue);
+  }
+  
+  .upload-button .icon-container {
+    background-color: transparent;
+    color: var(--primary-blue);
+  }
+  
+  .import-button .icon-container {
+    background-color: var(--primary-blue);
+    color: white;
+  }
+  
+  .upload-icon, .import-icon {
+    font-size: 32px;
+    font-style: normal;
+  }
+  
+  .button-text {
+    font-size: 16px;
+    color: var(--text-dark);
+  }
+  
+  /* Footer Styles */
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background-color: var(--background-gray);
+    color: var(--text-dark);
+    font-size: 12px;
+  }
+  
+  .footer-logo {
+    display: flex;
+    align-items: center;
+  }
+  
+  .footer-icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .copyright {
+    font-size: 11px;
+    color: #666;
+  }
+  
+  /* Responsive Adjustments */
+  @media (max-width: 768px) {
+    .search-bar {
+      width: 150px;
+    }
+    
+    .action-buttons {
+      gap: 30px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .header {
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .search-bar {
+      width: 100%;
+      margin: 10px 0;
+    }
+    
+    .action-buttons {
+      flex-direction: column;
+      gap: 20px;
+    }
+  }
