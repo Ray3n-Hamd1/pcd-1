@@ -8,13 +8,13 @@ const SignIn = () => {
   const goToHomePage = () => {
     navigate("/");
   };
-  const [Name, setName] = useState("");
+  const [Email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log("Sign in attempt with:", { Name, password, rememberMe });
+    console.log("Sign in attempt with:", { Email, password, rememberMe });
     // Add authentication logic here
   };
 
@@ -64,13 +64,13 @@ const SignIn = () => {
 
             <form className="auth-form" onSubmit={handleSubmit}>
               <div className="form-group">
-                <label htmlFor="email">Name</label>
+                <label htmlFor="email">Email</label>
                 <input
-                  type="text"
-                  id="Name"
-                  value={Name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your Name"
+                  type="email"
+                  id="Email"
+                  value={Email}
+                  onChange={(e) => setemail(e.target.value)}
+                  placeholder="Enter your Email"
                   required
                 />
               </div>

@@ -86,6 +86,11 @@
     color: black;
     font-weight: bold;
   }
+  .dropdown-arrow {
+    margin-left: 5px;
+    font-size: 12px;
+    color: black;
+  }
   
   /* Upload Content Styles */
   .upload-content {

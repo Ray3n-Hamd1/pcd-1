@@ -140,6 +140,7 @@ const Upload = () => {
             </svg>
           </div>
           <span className="user-name">name</span>
+          <span className="dropdown-arrow">▼</span>
         </div>
       </header>
 
