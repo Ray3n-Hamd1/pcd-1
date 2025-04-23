@@ -7,6 +7,7 @@ import SignUp from "./Components/SignUp";
 import UploadImport from "./Components/UploadImport";
 import Import from "./Components/Import";
 import Upload from "./Components/Upload";
+import ProtectedRoute from "./Components/ProtectedRoutes";
 
 function App() {
   return (
@@ -15,7 +16,15 @@ function App() {
         <Route path="/" element={<HomePage />}></Route>
         <Route path="/SignIn" element={<SignIn />}></Route>
         <Route path="/SignUp" element={<SignUp />}></Route>
-        <Route path="/UploadImport" element={<UploadImport />}></Route>
+        <Route
+          path="/uploadimport"
+          element={
+            <ProtectedRoute>
+              <UploadImport />
+            </ProtectedRoute>
+          }
+        />
+
         <Route path="/Import" element={<Import />}></Route>
         <Route path="/Upload" element={<Upload />}></Route>
       </Routes>

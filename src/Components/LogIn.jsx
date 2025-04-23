@@ -18,13 +18,8 @@ const SignIn = () => {
     try {
       const res = await fetch("http://localhost:5000/api/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: Email,
-          password: password,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: Email, password }),
       });
 
       const data = await res.json();
@@ -34,13 +29,17 @@ const SignIn = () => {
         return;
       }
 
-      console.log("Login successful:", data);
+      // ✅ Store token + user info
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
 
-      // ✅ Redirect to uploadimport page after login
+      // 👇 Optional: confirm what role they are
+      console.log("User role:", data.user.role);
+
       navigate("/uploadimport");
     } catch (err) {
       console.error("Login error:", err);
-      alert("Something went wrong. Try again.");
+      alert("Login failed. Try again.");
     }
   };
 
