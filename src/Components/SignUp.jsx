@@ -10,21 +10,43 @@ const SignUp = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [role, setRole] = useState("user");
   const [agreeTerms, setAgreeTerms] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (password !== confirmPassword) {
       alert("Passwords don't match!");
       return;
     }
-    console.log("Sign up attempt with:", {
-      fullName,
-      email,
-      password,
-      agreeTerms,
-    });
-    // Add registration logic here
+
+    try {
+      const res = await fetch("http://localhost:5000/api/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName,
+          email,
+          password,
+          role, // if you added a role selector
+          agreeTerms,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || "Signup failed");
+        return;
+      }
+
+      // ✅ Redirect to uploadimport page on success
+      navigate("/uploadimport");
+    } catch (err) {
+      console.error("Signup error:", err);
+      alert("Something went wrong during signup");
+    }
   };
 
   return (
@@ -123,6 +145,19 @@ const SignUp = () => {
                   required
                 />
               </div>
+              <div className="form-group">
+                <label htmlFor="role">Role</label>
+                <select
+                  id="role"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  required
+                >
+                  <option value="superadmin">Super Admin</option>
+                  <option value="admin">Admin</option>
+                  <option value="user">User</option>
+                </select>
+              </div>
 
               <div className="form-terms">
                 <input
@@ -144,7 +179,11 @@ const SignUp = () => {
                 </label>
               </div>
 
-              <button type="submit" className="auth-button">
+              <button
+                type="submit"
+                className="auth-button"
+                onClick={handleSubmit}
+              >
                 Sign Up
               </button>
             </form>

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import "./SignIn.css";
+import "./LogIn.css";
 import { useNavigate } from "react-router-dom";
 
 const SignIn = () => {
@@ -12,10 +12,36 @@ const SignIn = () => {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Sign in attempt with:", { Email, password, rememberMe });
-    // Add authentication logic here
+
+    try {
+      const res = await fetch("http://localhost:5000/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: Email,
+          password: password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || "Login failed");
+        return;
+      }
+
+      console.log("Login successful:", data);
+
+      // ✅ Redirect to uploadimport page after login
+      navigate("/uploadimport");
+    } catch (err) {
+      console.error("Login error:", err);
+      alert("Something went wrong. Try again.");
+    }
   };
 
   return (
@@ -69,7 +95,7 @@ const SignIn = () => {
                   type="email"
                   id="Email"
                   value={Email}
-                  onChange={(e) => setemail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your Email"
                   required
                 />

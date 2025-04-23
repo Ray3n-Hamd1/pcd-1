@@ -2,7 +2,7 @@ import { useState } from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 
 import HomePage from "./Components/HomePage";
-import SignIn from "./Components/SignIn";
+import SignIn from "./Components/LogIn";
 import SignUp from "./Components/SignUp";
 import UploadImport from "./Components/UploadImport";
 import Import from "./Components/Import";

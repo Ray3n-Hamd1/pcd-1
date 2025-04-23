@@ -1,15 +1,25 @@
 // Import the necessary modules
 require('dotenv').config({ path: 'C:/Users/ezzin/OneDrive/Documents/GitHub/pcd-1/server.env' });
-const express = require('express');
 const cors = require('cors');
 const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
 const multer = require('multer');
-const app = express();
 const port = process.env.PORT || 5000;
+const express = require("express");
+const signupRoute = require("./routes/signup"); // 🔗 Import the signup logic
+
+const app = express();
+app.use(cors()); // Allows frontend to talk to backend
+app.use(express.json()); // Lets us use JSON in requests
+
+app.use("/api", signupRoute); // 👈 Route for /api/signup
+
+const PORT = 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
 
 // Enable CORS for all origins (or restrict it to specific origins)
 app.use(cors({
-  origin: ['http://localhost:5174'], // Only allow requests from your frontend (you can specify more origins)
+  origin: ['http://localhost:5173'], // Only allow requests from your frontend (you can specify more origins)
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
@@ -44,3 +54,5 @@ app.post('/uploadFile', upload.single('file'), async (req, res) => {
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
 });
+const loginRoute = require("./routes/login"); // 👈 Import login route
+app.use("/api", loginRoute); // 👈 Mount the login route

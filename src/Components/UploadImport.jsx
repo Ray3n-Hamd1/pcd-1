@@ -1,5 +1,7 @@
 import React from "react";
 import "./UploadImport.css";
+import { useNavigate } from "react-router-dom";
+import DropDownMenu from "./DropDownMenu"; // Assuming you have a DropDownMenu component
 
 function UploadImport() {
   const navigate = useNavigate();
@@ -53,7 +55,7 @@ function UploadImport() {
             <i className="search-icon">🔍</i>
           </button>
         </div>
-        <DropDownMenu/>
+        <DropDownMenu />
       </header>
 
       <main className="main-content">
@@ -70,7 +72,7 @@ function UploadImport() {
           </div>
 
           <div className="action-buttons">
-            <button className="upload-button" onClick={goToupload} >
+            <button className="upload-button" onClick={goToupload}>
               <div className="icon-container">
                 <i className="upload-icon">↑</i>
               </div>
