@@ -60,29 +60,6 @@
     cursor: pointer;
   }
   
-  /* User Profile Styles */
-  .user-profile {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-  }
-  
-  .user-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background-color: #0068B4;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-  
-  .user-name {
-    margin-left: 8px;
-    color: black;
-    font-weight: bold;
-  }
-  
   /* Main Content Styles */
   .app-content {
     display: flex;

@@ -1,5 +1,6 @@
 import React from "react";
 import "./UploadImport.css";
+import DropDownMenu from "./DropDownMenu";
 
 function UploadImport() {
   return (
@@ -46,26 +47,7 @@ function UploadImport() {
             <i className="search-icon">🔍</i>
           </button>
         </div>
-        <div className="user-profile">
-          <div className="user-avatar">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
-            </svg>
-          </div>
-          <span className="user-name">name</span>
-          <span className="dropdown-arrow">▼</span>
-        </div>
+        <DropDownMenu/>
       </header>
 
       <main className="main-content">

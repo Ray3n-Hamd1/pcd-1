@@ -68,33 +68,7 @@
     cursor: pointer;
   }
   
-  .user-profile {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-  }
-  
-  .user-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background-color: #0068B4;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-  
-  .user-name {
-    margin-left: 8px;
-    color: black;
-    font-weight: bold;
-  }
-  .dropdown-arrow {
-    margin-left: 5px;
-    font-size: 12px;
-    color: black;
-  }
-  
+
   /* Main Content Styles */
   .main-content {
     flex-grow: 1;
