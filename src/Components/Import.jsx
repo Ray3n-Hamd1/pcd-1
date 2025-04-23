@@ -285,6 +285,7 @@ const Import = () => {
           <FilePreview selectedFile={selectedFile} />
         </div>
       </div>
+      
 
       {/* Footer */}
       <footer className="app-footer">

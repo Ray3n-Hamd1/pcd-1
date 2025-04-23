@@ -1,8 +1,14 @@
 import React from "react";
 import "./UploadImport.css";
-import DropDownMenu from "./DropDownMenu";
 
 function UploadImport() {
+  const navigate = useNavigate();
+  const goToupload = () => {
+    navigate("/Upload");
+  };
+  const goToImport = () => {
+    navigate("/Import");
+  };
   return (
     <div className="secure-safe-container">
       <header className="header">
@@ -64,14 +70,14 @@ function UploadImport() {
           </div>
 
           <div className="action-buttons">
-            <button className="upload-button">
+            <button className="upload-button" onClick={goToupload} >
               <div className="icon-container">
                 <i className="upload-icon">↑</i>
               </div>
               <span className="button-text">upload</span>
             </button>
 
-            <button className="import-button">
+            <button className="import-button" onClick={goToImport}>
               <div className="icon-container">
                 <i className="import-icon">↓</i>
               </div>
