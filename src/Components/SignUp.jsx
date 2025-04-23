@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
 const SignUp = () => {
   const navigate = useNavigate();
 
@@ -8,6 +7,7 @@ const SignUp = () => {
     navigate("/");
   };
   const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
@@ -20,6 +20,7 @@ const SignUp = () => {
     }
     console.log("Sign up attempt with:", {
       fullName,
+      email,
       password,
       agreeTerms,
     });
@@ -79,6 +80,18 @@ const SignUp = () => {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Enter your full name"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="email">Email</label>
+                <input
+                  type="email"
+                  id="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
                   required
                 />
               </div>
@@ -150,33 +163,30 @@ const SignUp = () => {
 
       <footer className="footer">
         <div className="footer-logo">
-          <svg viewBox="0 0 100 100" className="logo-svg">
-            <circle cx="50" cy="30" r="15" fill="#1a1a5f" />
-            <circle cx="30" cy="70" r="15" fill="#1a1a5f" />
-            <circle cx="70" cy="70" r="15" fill="#1a1a5f" />
+          <svg
+            className="footer-icon"
+            width="40"
+            height="40"
+            viewBox="0 0 40 40"
+          >
+            <circle fill="#555" cx="20" cy="20" r="8" />
+            <circle fill="#555" cx="10" cy="30" r="5" />
+            <circle fill="#555" cx="30" cy="30" r="5" />
             <line
-              x1="50"
-              y1="30"
+              stroke="#555"
+              strokeWidth="2"
+              x1="20"
+              y1="20"
+              x2="10"
+              y2="30"
+            />
+            <line
+              stroke="#555"
+              strokeWidth="2"
+              x1="20"
+              y1="20"
               x2="30"
-              y2="70"
-              stroke="#1a1a5f"
-              strokeWidth="5"
-            />
-            <line
-              x1="50"
-              y1="30"
-              x2="70"
-              y2="70"
-              stroke="#1a1a5f"
-              strokeWidth="5"
-            />
-            <line
-              x1="30"
-              y1="70"
-              x2="70"
-              y2="70"
-              stroke="#1a1a5f"
-              strokeWidth="5"
+              y2="30"
             />
           </svg>
         </div>
