@@ -3,6 +3,8 @@ import "./DropDownMenu.css";
 import { useNavigate } from "react-router-dom";
 
 export default function DropDownMenu() {
+  const user = JSON.parse(localStorage.getItem("user"));
+  const token = localStorage.getItem("token");
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [selected, setSelected] = useState("Select an option");
@@ -12,16 +14,22 @@ export default function DropDownMenu() {
   const toggleDropdown = () => setIsOpen(!isOpen);
   const handleSelect = (option) => {
     setIsOpen(false);
-    const routes = {
-      profile: "/",
-      departements: "/about",
-      historique: "/contact",
-      logout: "/signin",
-    };
 
-    setSelected(option);
-    navigate(routes[option]); // redirects to the matching page
+    if (option === "logout") {
+      // Clear localStorage and redirect to login
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      navigate("/signin");
+    } else {
+      const routes = {
+        profile: "/",
+        departements: "/about",
+        historique: "/contact",
+      };
+      navigate(routes[option]);
+    }
   };
+
   return (
     <div className="dropdown-container">
       <button onClick={toggleDropdown} className="dropdown-toggle">
@@ -42,7 +50,7 @@ export default function DropDownMenu() {
               <circle cx="12" cy="7" r="4"></circle>
             </svg>
           </div>
-          <span className="user-name">name</span>
+          <span className="user-name">{user?.name}</span>
           <span className="dropdown-arrow">▼</span>
         </div>
       </button>
