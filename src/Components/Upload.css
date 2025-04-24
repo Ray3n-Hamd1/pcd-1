@@ -185,9 +185,10 @@ body {
   padding: 12px 40px;
   font-size: 18px;
   cursor: pointer;
-  width: 100%;
+  width: 40%;
   max-width: 450px;
   margin-bottom: 20px;
+  margin-top: 20px ;
 }
 
 .upload-button:disabled {

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import "./Upload.css";
+import { encryptFile } from '../utils/encryption';
 
 const Upload = () => {
   const [files, setFiles] = useState([]);
@@ -10,6 +11,29 @@ const Upload = () => {
   const fileInputRef = useRef(null);
   const dragItem = useRef();
   const dragOverItem = useRef();
+  const handleFileChange = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    addFiles(selectedFiles);
+  };
+  const addFiles = (newFiles) => {
+    // Filter out duplicates
+    const filteredFiles = newFiles.filter(
+      newFile => !files.some(existingFile => existingFile.name === newFile.name)
+    );
+  
+    // Add new files to existing files
+    setFiles(prevFiles => [...prevFiles, ...filteredFiles]);
+  };
+  const removeFile = (indexToRemove) => {
+    setFiles(prevFiles => prevFiles.filter((_, index) => index !== indexToRemove));
+    
+    // Also remove the file's progress
+    setUploadProgress(prev => {
+      const newProgress = { ...prev };
+      delete newProgress[files[indexToRemove].name];
+      return newProgress;
+    });
+  };
 
   const handleDragEnter = (e) => {
     e.preventDefault();
@@ -43,57 +67,174 @@ const Upload = () => {
     fileInputRef.current.click();
   };
 
-  const handleFileChange = (e) => {
-    const selectedFiles = Array.from(e.target.files);
-    if (selectedFiles.length > 0) {
-      addFiles(selectedFiles);
-    }
-  };
-
-  const addFiles = (newFiles) => {
-    const updatedFiles = [...files];
-    newFiles.forEach((file) => {
-      if (!updatedFiles.find((f) => f.name === file.name && f.size === file.size)) {
-        updatedFiles.push(file);
-      }
-    });
-    setFiles(updatedFiles);
-    setIsUploaded(false);
-  };
-
-  const removeFile = (index) => {
-    const updatedFiles = [...files];
-    updatedFiles.splice(index, 1);
-    setFiles(updatedFiles);
-  };
-
-  // Function to upload files to Azure Blob Storage
   const handleUploadClick = async () => {
-    const formData = new FormData();
+    if (files.length === 0) return;
     
-    // Append file(s) to form data
-    for (const file of files) {
-      formData.append('file', file);
-    }
-  
+    setIsUploading(true);
+    
     try {
-      const response = await fetch("http://localhost:5000/uploadFile", {
+      // Step 1: Encrypt each file
+      const encryptedFiles = [];
+      const formData = new FormData();
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Update progress to show encryption is happening
+        setUploadProgress(prev => ({
+          ...prev,
+          [file.name]: 10 // Show 10% progress for encryption start
+        }));
+        
+        // Encrypt the file
+        const { encryptedBlob, key, iv } = await encryptFile(file);
+        
+        // Update progress
+        setUploadProgress(prev => ({
+          ...prev,
+          [file.name]: 30 // Encryption complete - 30%
+        }));
+        
+        // Add to our tracking array
+        encryptedFiles.push({
+          originalName: file.name,
+          encryptedBlob,
+          key,
+          iv
+        });
+        
+        // Add to form data for upload
+        formData.append('files', encryptedBlob, `${file.name}.encrypted`);
+      }
+      
+      // Step 2: Upload encrypted files to Azure Blob Storage
+      setUploadProgress(prev => {
+        const newProgress = { ...prev };
+        files.forEach(file => {
+          newProgress[file.name] = 50; // Upload started - 50%
+        });
+        return newProgress;
+      });
+      
+      const uploadResponse = await fetch("http://localhost:5000/uploadFile", {
         method: 'POST',
         body: formData
       });
-  
-      if (!response.ok) {
-        throw new Error('Failed to upload file');
+      
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload files to Azure');
       }
-  
-      const result = await response.json();
-      alert(result.message);
+      
+      const uploadResult = await uploadResponse.json();
+      
+      setUploadProgress(prev => {
+        const newProgress = { ...prev };
+        files.forEach(file => {
+          newProgress[file.name] = 75; // Upload complete - 75%
+        });
+        return newProgress;
+      });
+      
+      // Step 3: Save encryption data in the database
+      for (let i = 0; i < uploadResult.files.length; i++) {
+        const fileUploadInfo = uploadResult.files[i];
+        
+        // Find matching encrypted file info
+        const originalFileName = fileUploadInfo.originalName.replace('.encrypted', '');
+        const encryptedFileInfo = encryptedFiles.find(ef => ef.originalName === originalFileName);
+        const arrayBufferToBase64 = (buffer) => {
+          if (!buffer) return '';
+          
+          let binary = '';
+          const bytes = new Uint8Array(buffer);
+          for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          return window.btoa(binary);
+        };
+        if (encryptedFileInfo) {
+          // Save encryption data in database
+          const saveDataResponse = await fetch("http://localhost:5000/saveEncryptionData", {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              fileName: fileUploadInfo.encryptedName,
+              originalName: originalFileName,
+              blobUrl: fileUploadInfo.blobUrl,
+              // Convert encryption key and IV to base64 strings if they're not already
+              encryptionKey: typeof encryptedFileInfo.key === 'string' 
+                ? encryptedFileInfo.key 
+                : arrayBufferToBase64(encryptedFileInfo.key),
+              iv: typeof encryptedFileInfo.iv === 'string'
+                ? encryptedFileInfo.iv
+                : arrayBufferToBase64(encryptedFileInfo.iv),
+              userId: 1, // Replace with actual user ID from your authentication system
+              
+            })
+          });
+          if (!saveDataResponse.ok) {
+            const errorData = await saveDataResponse.json();
+            console.error('Error response from server:', errorData);
+            throw new Error(`Failed to save encryption data: ${errorData.error || 'Unknown error'}`);
+          }
+          const saveResult = await saveDataResponse.json();
+          console.log('Encryption data saved:', saveResult);
+          
+          // Update progress to 100% for this file
+          setUploadProgress(prev => ({
+            ...prev,
+            [originalFileName]: 100
+          }));
+        }
+      }
+      
+      // Success!
+      setIsUploaded(true);
+      setIsUploading(false);
+      
+      // Clear form after short delay
+      setTimeout(() => {
+        if (uploadResult.files.length === files.length) {
+          setFiles([]);
+          setUploadProgress({});
+        }
+      }, 2000);
+      
     } catch (error) {
-      console.error('Error uploading files:', error);
-      alert('Error uploading files: ' + error.message);
+      console.error('Error in upload process:', error);
+      setIsUploading(false);
+      alert(`Error: ${error.message}`);
     }
   };
-  
+  // Function to save encryption keys (you need to implement this)
+  const saveEncryptionKeys = async (encryptionData) => {
+    // IMPORTANT: You need to securely store these keys
+    // Options include:
+    // 1. Save to a secure database (separate from the files)
+    // 2. Use a key management service
+    // 3. Encrypt the keys themselves with a master key
+    
+    try {
+      const response = await fetch("http://localhost:5000/saveKeys", {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ encryptionData })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save encryption keys');
+      }
+      
+      console.log('Encryption keys saved successfully');
+    } catch (error) {
+      console.error('Error saving encryption keys:', error);
+      alert('Warning: Encryption keys could not be saved. You may not be able to decrypt your files.');
+    }
+  };
 
   const formatFileSize = (bytes) => {
     const kb = bytes / 1024;
@@ -264,7 +405,7 @@ const Upload = () => {
           onClick={handleUploadClick}
           disabled={files.length === 0 || isUploading}
         >
-          {isUploading ? 'Uploading...' : 'Upload to Azure'}
+          {isUploading ? 'Uploading...' : 'Upload '}
         </button>
 
         {isUploading && (
@@ -289,7 +430,7 @@ const Upload = () => {
 
         {isUploaded && (
           <p className="upload-message">
-            Your documents have been securely uploaded <span className="highlight">to Azure storage</span>.
+            Your documents have been securely encrypted and uploaded <span className="highlight">to Azure storage</span>.
           </p>
         )}
       </div>
