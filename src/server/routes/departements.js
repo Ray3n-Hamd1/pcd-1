@@ -632,4 +632,379 @@ router.post("/user-department", async (req, res) => {
     res.status(500).json({ error: 'Error adding user to department' });
   }
 });
+// Add this endpoint to your Express.js backend
+
+// Assuming you have a route file for file operations (e.g., routes/files.js)
+
+
+
+// Existing route for file upload to Azure Blob Storage
+// ...
+
+// Updated route to save encryption data with department association
+router.post("/saveEncryptionData", async (req, res) => {
+  try {
+    const { 
+      fileName, 
+      originalName, 
+      blobUrl, 
+      encryptionKey, 
+      iv, 
+      userId, 
+      sousDepId  // New parameter for sub-department ID
+    } = req.body;
+
+    // Validate required fields
+    if (!fileName || !originalName || !blobUrl || !encryptionKey || !iv || !userId || !sousDepId) {
+      return res.status(400).json({ 
+        error: "Missing required fields",
+        message: "All fields including sousDepId are required"
+      });
+    }
+
+    const pool = await poolPromise;
+    
+    // Start a transaction
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    
+    try {
+      // 1. Insert file record with sous-department reference
+      const insertFileResult = await transaction.request()
+        .input("nom_fichier", sql.VarChar, originalName)
+        .input("chemin_stockage", sql.VarChar, blobUrl)
+        .input("cree_par", sql.Int, userId)
+        .input("date_creation", sql.DateTime, new Date())
+        .input("id_sous_departement", sql.Int, sousDepId)
+        .query(`
+          INSERT INTO dbo.Fichier 
+          (nom_fichier, chemin_stockage, cree_par, date_creation, id_sous_departement) 
+          OUTPUT INSERTED.id_fichier
+          VALUES (@nom_fichier, @chemin_stockage, @cree_par, @date_creation, @id_sous_departement)
+        `);
+      
+      const fileId = insertFileResult.recordset[0].id_fichier;
+      
+      // 2. Insert encryption key record
+      await transaction.request()
+        .input("id_fichier", sql.Int, fileId)
+        .input("cle_encryption", sql.VarChar, encryptionKey)
+        .input("iv", sql.VarChar, iv)
+        .input("nom_fichier_encrypt", sql.VarChar, fileName)
+        .query(`
+          INSERT INTO dbo.EncryptionKey 
+          (id_fichier, cle_encryption, iv, nom_fichier_encrypt) 
+          VALUES (@id_fichier, @cle_encryption, @iv, @nom_fichier_encrypt)
+        `);
+      
+      // Commit the transaction
+      await transaction.commit();
+      
+      res.status(201).json({ 
+        message: "File and encryption data saved successfully",
+        fileId: fileId
+      });
+    } catch (error) {
+      // Rollback the transaction in case of error
+      await transaction.rollback();
+      console.error("Database error:", error);
+      res.status(500).json({ 
+        error: "Failed to save file data", 
+        details: error.message 
+      });
+    }
+  } catch (error) {
+    console.error("Server error:", error);
+    res.status(500).json({ 
+      error: "Server error", 
+      details: error.message 
+    });
+  }
+});
+
+// New route to get files by sub-department
+router.get("/files/sousdepartment/:sousDepId", async (req, res) => {
+  try {
+    const { sousDepId } = req.params;
+    
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input("sousDepId", sql.Int, sousDepId)
+      .query(`
+        SELECT 
+          f.id_fichier, 
+          f.nom_fichier, 
+          f.chemin_stockage, 
+          f.date_creation,
+          u.nom as uploaded_by_name,
+          sd.nom as sous_departement_name,
+          d.nom as departement_name
+        FROM 
+          dbo.Fichier f
+        JOIN 
+          dbo.Utilisateur u ON f.cree_par = u.id_utilisateur
+        JOIN 
+          dbo.SousDepartement sd ON f.id_sous_departement = sd.id_sous_departement
+        JOIN 
+          dbo.Departement d ON sd.id_departement = d.id_departement
+        WHERE 
+          f.id_sous_departement = @sousDepId
+        ORDER BY 
+          f.date_creation DESC
+      `);
+    
+    res.json(result.recordset);
+  } catch (error) {
+    console.error("Error fetching files:", error);
+    res.status(500).json({ error: "Error fetching files" });
+  }
+});
+
+// New route to get encryption key for a file
+router.get("/files/:fileId/key", async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    const userId = req.query.userId; // The user requesting the key
+    
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+    
+    const pool = await poolPromise;
+    
+    // First check if user has access to this file through department membership
+    const accessCheck = await pool.request()
+      .input("fileId", sql.Int, fileId)
+      .input("userId", sql.Int, userId)
+      .query(`
+        SELECT 
+          COUNT(*) as has_access
+        FROM 
+          dbo.Fichier f
+        JOIN 
+          dbo.SousDepartement sd ON f.id_sous_departement = sd.id_sous_departement
+        JOIN 
+          dbo.User_SousDepartement usd ON sd.id_sous_departement = usd.id_sous_departement
+        WHERE 
+          f.id_fichier = @fileId AND usd.id_utilisateur = @userId
+      `);
+    
+    const hasAccess = accessCheck.recordset[0].has_access > 0;
+    
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    // Get the encryption key
+    const keyResult = await pool.request()
+      .input("fileId", sql.Int, fileId)
+      .query(`
+        SELECT 
+          id_fichier,
+          cle_encryption,
+          iv,
+          nom_fichier_encrypt
+        FROM 
+          dbo.EncryptionKey
+        WHERE 
+          id_fichier = @fileId
+      `);
+    
+    if (keyResult.recordset.length === 0) {
+      return res.status(404).json({ error: "Encryption key not found" });
+    }
+    
+    // Log access to the file
+    await pool.request()
+      .input("fileId", sql.Int, fileId)
+      .input("userId", sql.Int, userId)
+      .input("date_acces", sql.DateTime, new Date())
+      .query(`
+        INSERT INTO dbo.LogAcces 
+        (id_fichier, id_utilisateur, date_acces) 
+        VALUES (@fileId, @userId, @date_acces)
+      `);
+    
+    res.json(keyResult.recordset[0]);
+  } catch (error) {
+    console.error("Error retrieving encryption key:", error);
+    res.status(500).json({ error: "Error retrieving encryption key" });
+  }
+});
+// Add these routes to your departements.js file
+
+// Get departments for a superadmin
+router.get("/superadmin/:userId/departments", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!userId || userId === 'undefined') {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+    
+    const pool = await poolPromise;
+    
+    // SuperAdmin departments
+    const result = await pool
+      .request()
+      .input("userId", sql.Int, userId)
+      .query(`
+        SELECT d.* 
+        FROM dbo.Departement d
+        INNER JOIN dbo.SuperAdmin_Departement sad ON d.id_departement = sad.id_departement
+        WHERE sad.id_utilisateur = @userId
+      `);
+    
+    res.json(result.recordset);
+  } catch (error) {
+    console.error("Error fetching superadmin departments:", error);
+    res.status(500).json({ error: "Error fetching superadmin departments" });
+  }
+});
+
+// Get departments for an admin
+router.get("/admin/:userId/departments", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!userId || userId === 'undefined') {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+    
+    const pool = await poolPromise;
+    
+    // Admin departments - get departments based on sous-departments they admin
+    const result = await pool
+      .request()
+      .input("userId", sql.Int, userId)
+      .query(`
+        SELECT DISTINCT d.id_departement, d.nom, d.description
+        FROM dbo.Departement d
+        INNER JOIN dbo.SousDepartement sd ON d.id_departement = sd.id_departement
+        INNER JOIN dbo.Admin_SousDepartement asd ON sd.id_sous_departement = asd.id_sous_departement
+        WHERE asd.id_utilisateur = @userId
+      `);
+    
+    res.json(result.recordset);
+  } catch (error) {
+    console.error("Error fetching admin departments:", error);
+    res.status(500).json({ error: "Error fetching admin departments" });
+  }
+});
+
+// Get departments for a regular user
+router.get("/user/:userId/departments", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!userId || userId === 'undefined') {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+    
+    const pool = await poolPromise;
+    
+    // Regular user departments
+    const result = await pool
+      .request()
+      .input("userId", sql.Int, userId)
+      .query(`
+        SELECT DISTINCT d.id_departement, d.nom, d.description
+        FROM dbo.Departement d
+        INNER JOIN dbo.SousDepartement sd ON d.id_departement = sd.id_departement
+        INNER JOIN dbo.User_SousDepartement usd ON sd.id_sous_departement = usd.id_sous_departement
+        WHERE usd.id_utilisateur = @userId
+      `);
+    
+    res.json(result.recordset);
+  } catch (error) {
+    console.error("Error fetching user departments:", error);
+    res.status(500).json({ error: "Error fetching user departments" });
+  }
+});
+
+// Route to get sous-departments for a department
+router.get("/departments/:departmentId/sousdepartments", async (req, res) => {
+  try {
+    const { departmentId } = req.params;
+    
+    if (!departmentId) {
+      return res.status(400).json({ error: "Invalid department ID" });
+    }
+    
+    const pool = await poolPromise;
+    
+    const result = await pool
+      .request()
+      .input("departmentId", sql.Int, departmentId)
+      .query(`
+        SELECT id_sous_departement, nom, description, id_departement
+        FROM dbo.SousDepartement
+        WHERE id_departement = @departmentId
+      `);
+    
+    res.json(result.recordset);
+  } catch (error) {
+    console.error("Error fetching sous-departments:", error);
+    res.status(500).json({ error: "Error fetching sous-departments" });
+  }
+});
+router.get("/admin/:userId/departments", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!userId || userId === 'undefined') {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+    
+    const pool = await poolPromise;
+    
+    // Fixed query - no DISTINCT with text data type
+    const result = await pool
+      .request()
+      .input("userId", sql.Int, userId)
+      .query(`
+        SELECT d.id_departement, d.nom
+        FROM dbo.Departement d
+        INNER JOIN dbo.SousDepartement sd ON d.id_departement = sd.id_departement
+        INNER JOIN dbo.Admin_SousDepartement asd ON sd.id_sous_departement = asd.id_sous_departement
+        WHERE asd.id_utilisateur = @userId
+        GROUP BY d.id_departement, d.nom
+      `);
+    
+    res.json(result.recordset);
+  } catch (error) {
+    console.error("Error fetching admin departments:", error);
+    res.status(500).json({ error: "Error fetching admin departments" });
+  }
+});
+router.get("/user/:userId/departments", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!userId || userId === 'undefined') {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+    
+    const pool = await poolPromise;
+    
+    // Fixed query - no DISTINCT with text data type
+    const result = await pool
+      .request()
+      .input("userId", sql.Int, userId)
+      .query(`
+        SELECT d.id_departement, d.nom
+        FROM dbo.Departement d
+        INNER JOIN dbo.SousDepartement sd ON d.id_departement = sd.id_departement
+        INNER JOIN dbo.User_SousDepartement usd ON sd.id_sous_departement = usd.id_sous_departement
+        WHERE usd.id_utilisateur = @userId
+        GROUP BY d.id_departement, d.nom
+      `);
+    
+    res.json(result.recordset);
+  } catch (error) {
+    console.error("Error fetching user departments:", error);
+    res.status(500).json({ error: "Error fetching user departments" });
+  }
+});
+
 module.exports = router;
