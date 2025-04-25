@@ -23,7 +23,7 @@ export default function DropDownMenu() {
     } else {
       const routes = {
         profile: "/",
-        departements: "/about",
+        departements: "/departements",
         historique: "/contact",
       };
       navigate(routes[option]);

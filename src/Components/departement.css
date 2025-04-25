@@ -1,0 +1,117 @@
+.department-management {
+  --primary-color: #1a1a5f;
+  --accent-color: #f8971d;
+  --bg-light: #f8f9fa;
+  --text-dark: #212529;
+  --border-color: #dee2e6;
+  --section-bg: #ffffff;
+
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--text-dark);
+  background-color: var(--bg-light);
+}
+
+.department-management h1 {
+  color: var(--primary-color);
+  margin-bottom: 20px;
+}
+
+.department-management .section {
+  background: var(--section-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 30px;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.05);
+}
+
+.department-management .section h3 {
+  color: var(--primary-color);
+}
+
+.department-management .list-group {
+  list-style: none;
+  padding-left: 0;
+}
+
+.department-management .list-group-item {
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  padding: 12px 15px;
+}
+
+.department-management .form-group {
+  margin-bottom: 15px;
+}
+
+.department-management label {
+  font-weight: bold;
+  margin-bottom: 5px;
+  display: inline-block;
+}
+
+.department-management input.form-control,
+.department-management textarea.form-control,
+.department-management select.form-control {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.department-management button.btn {
+  padding: 8px 14px;
+  font-size: 0.95rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+
+.department-management .btn-primary {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+.department-management .btn-primary:hover {
+  background-color: #e4860c;
+}
+
+.department-management .btn-outline-primary {
+  border: 1px solid var(--accent-color);
+  color: var(--accent-color);
+  background: white;
+}
+
+.department-management .btn-outline-primary:hover {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+.department-management .btn-success {
+  background-color: #28a745;
+  color: white;
+}
+
+.department-management .btn-success:hover {
+  background-color: #218838;
+}
+
+.department-management .btn-danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+.department-management .btn-danger:hover {
+  background-color: #c82333;
+}
+
+.department-management .mt-2 {
+  margin-top: 0.5rem;
+}
+
+.department-management .mt-4 {
+  margin-top: 1.5rem;
+}

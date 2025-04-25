@@ -8,6 +8,7 @@ import UploadImport from "./Components/UploadImport";
 import Import from "./Components/Import";
 import Upload from "./Components/Upload";
 import ProtectedRoute from "./Components/ProtectedRoutes";
+import Department from "./Components/Departement.jsx";  
 
 function App() {
   return (
@@ -25,8 +26,28 @@ function App() {
           }
         />
 
-        <Route path="/Import" element={<Import />}></Route>
-        <Route path="/Upload" element={<Upload />}></Route>
+        <Route
+          path="/Import"
+          element={
+            <ProtectedRoute>
+              <Import />
+            </ProtectedRoute>
+          }
+        ></Route>
+        <Route
+          path="/Upload"
+          element={
+            <ProtectedRoute>
+              <Upload />
+            </ProtectedRoute>
+          }
+        ></Route>
+        <Route
+          path="/departements"
+          element={<ProtectedRoute>
+            <Department />  
+          </ProtectedRoute>}
+        ></Route>
       </Routes>
     </Router>
   );
