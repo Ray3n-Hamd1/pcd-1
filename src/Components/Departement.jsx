@@ -7,8 +7,10 @@ const Department = () => {
   axios.defaults.baseURL = "http://localhost:5000";
 
   // State management
+  const [requestSentToSousDepartment, setRequestSentToSousDepartment] =
+    useState({});
   const [newDeptName, setNewDeptName] = useState("");
-  const [adminManagedDepartments, setAdminManagedDepartments] = useState([]); // Here is the declaration
+  const [adminManagedDepartments, setAdminManagedDepartments] = useState([]);
   const [newDeptDesc, setNewDeptDesc] = useState("");
   const [newSousDeptDesc, setNewSousDeptDesc] = useState("");
   const [newSousDeptName, setNewSousDeptName] = useState("");
@@ -56,8 +58,52 @@ const Department = () => {
 
     fetchUserData();
   }, []);
-
+  useEffect(() => {
+    // Only fetch join requests when userId is available and user is an admin
+    if (userId && userRole === "admin") {
+      fetchExistingJoinRequests();
+    }
+  }, [userId, userRole]);
   // Data fetching functions
+  // Add this function to your Department.jsx component
+  const fetchUserDataForRegularUser = async (userId) => {
+    try {
+      console.log("Fetching regular user data for user ID:", userId);
+
+      // Get all departments for reference
+      const allDeptResponse = await axios.get("/api/departments");
+      setDepartments(allDeptResponse.data);
+      console.log("All departments loaded:", allDeptResponse.data.length);
+
+      // Get all sous-departments
+      const allSousDeptResponse = await axios.get("/api/sousdepartments");
+      setSousDepartments(allSousDeptResponse.data);
+      console.log(
+        "All sous-departments loaded:",
+        allSousDeptResponse.data.length
+      );
+
+      // Get departments this user belongs to
+      const userDeptResponse = await axios.get(
+        `/api/users/${userId}/departments`
+      );
+      setUserDepartments(userDeptResponse.data);
+      console.log("User departments loaded:", userDeptResponse.data.length);
+
+      // Get sous-departments this user belongs to
+      const userSousDeptResponse = await axios.get(
+        `/api/users/${userId}/sousdepartments`
+      );
+      setUserSousDepartments(userSousDeptResponse.data);
+      console.log(
+        "User sous-departments loaded:",
+        userSousDeptResponse.data.length
+      );
+    } catch (error) {
+      console.error("Error fetching regular user data:", error);
+      throw error; // Rethrow to be caught by the caller
+    }
+  };
   const fetchSuperAdminData = async (userId) => {
     try {
       const deptResponse = await axios.get("/api/departments");
@@ -77,49 +123,72 @@ const Department = () => {
       console.error("Error fetching superadmin data:", error);
     }
   };
+  const fetchExistingJoinRequests = async () => {
+    try {
+      if (!userId || isNaN(parseInt(userId, 10))) {
+        console.error("Invalid userId for fetching join requests:", userId);
+        return;
+      }
 
+      const response = await axios.get(
+        `/api/join-requests?userId=${userId}&status=pending`
+      );
+
+      // Create objects to track which departments and sous-departments have pending requests
+      const pendingDeptRequests = {};
+      const pendingSousDeptRequests = {};
+
+      response.data.forEach((request) => {
+        if (request.type_demande === "department" && request.id_departement) {
+          pendingDeptRequests[request.id_departement] = true;
+        } else if (
+          request.type_demande === "sous_department" &&
+          request.id_sous_departement
+        ) {
+          pendingSousDeptRequests[request.id_sous_departement] = true;
+        }
+      });
+
+      setRequestSentToDepartment(pendingDeptRequests);
+      setRequestSentToSousDepartment(pendingSousDeptRequests);
+    } catch (error) {
+      console.error("Error fetching existing join requests:", error);
+    }
+  };
+  // Replace your fetchAdminData function with this version
   const fetchAdminData = async (userId) => {
     try {
+      // Get all departments for reference
+      const allDeptResponse = await axios.get("/api/departments");
+      setDepartments(allDeptResponse.data);
+
+      // Get departments managed by this admin (added or modified)
       const adminDeptResponse = await axios.get(
-        `/api/admin/${userId}/departments`
+        `/api/admin/${userId}/managed-departments`
       );
+      setAdminManagedDepartments(adminDeptResponse.data);
+
+      // Get sous-departments where user is an admin
       const adminSousDeptResponse = await axios.get(
         `/api/admin/${userId}/sousdepartments`
       );
-      const allDeptResponse = await axios.get("/api/departments");
+
+      // Get join requests for the admin's sous-departments
+      // Check in your fetchAdminData function
       const userJoinRequestsResponse = await axios.get(
         `/api/admin/${userId}/sousdepartments/joinrequests`
       );
+      console.log("Join requests loaded:", userJoinRequestsResponse.data);
+      setJoinRequests(userJoinRequestsResponse.data);
 
       setUserDepartments(adminDeptResponse.data);
       setUserSousDepartments(adminSousDeptResponse.data);
-      setDepartments(allDeptResponse.data);
       setJoinRequests(userJoinRequestsResponse.data);
     } catch (error) {
       console.error("Error fetching admin data:", error);
+      // Your error handling code
     }
   };
-
-  const fetchUserDataForRegularUser = async (userId) => {
-    try {
-      const userSousDeptResponse = await axios.get(
-        `/api/users/${userId}/sousdepartments`
-      );
-      const allSousDeptResponse = await axios.get("/api/sousdepartments");
-      const allDeptResponse = await axios.get("/api/departments");
-      const userDeptResponse = await axios.get(
-        `/api/users/${userId}/departments`
-      );
-
-      setUserSousDepartments(userSousDeptResponse.data);
-      setSousDepartments(allSousDeptResponse.data);
-      setDepartments(allDeptResponse.data);
-      setUserDepartments(userDeptResponse.data);
-    } catch (error) {
-      console.error("Error fetching user data:", error);
-    }
-  };
-
   const handleCreateDepartment = async (e) => {
     e.preventDefault();
     try {
@@ -143,6 +212,7 @@ const Department = () => {
       setUserDepartments([...userDepartments, response.data]); // Update the superadmin's department list immediately
       setNewDeptName("");
       setNewDeptDesc("");
+      alert("Department created successfully!");
     } catch (error) {
       console.error("Error creating department:", error);
     }
@@ -151,17 +221,63 @@ const Department = () => {
   const handleCreateSousDepartment = async (e) => {
     e.preventDefault();
     try {
+      // Get the current user's ID from localStorage
+      const userString = localStorage.getItem("user");
+      const user = JSON.parse(userString);
+      const currentUserId = user ? user.id : null;
+
       const response = await axios.post("/api/sousdepartments", {
         nom: newSousDeptName,
         description: newSousDeptDesc,
         id_departement: selectedDepartment,
+        userId: currentUserId, // Add the current user's ID
       });
 
       setSousDepartments([...sousDepartments, response.data]);
       setNewSousDeptName("");
       setNewSousDeptDesc("");
+      alert("Sous-department created successfully!");
     } catch (error) {
       console.error("Error creating sous-department:", error);
+      alert("Error creating sous-department");
+    }
+  };
+  const handleApproveJoinRequest = async (requestId, isApproved) => {
+    try {
+      const response = await axios.put(`/api/join-requests/${requestId}`, {
+        statut: isApproved ? "approved" : "rejected",
+      });
+
+      // Remove the processed request from the list
+      setJoinRequests((prevRequests) =>
+        prevRequests.filter((req) => req.id_demande !== requestId)
+      );
+
+      // If approved, add the user to the sous-department
+      if (isApproved) {
+        const request = joinRequests.find(
+          (req) => req.id_demande === requestId
+        );
+
+        if (request.type_demande === "sous_department") {
+          await axios.post("/api/user-sousdepartment", {
+            userId: request.id_utilisateur,
+            sousDepartementId: request.id_sous_departement,
+          });
+        } else if (request.type_demande === "department") {
+          await axios.post("/api/user-department", {
+            userId: request.id_utilisateur,
+            departementId: request.id_departement,
+          });
+        }
+      }
+
+      alert(
+        `Join request ${isApproved ? "approved" : "rejected"} successfully`
+      );
+    } catch (error) {
+      console.error("Error processing join request:", error);
+      alert(`Failed to ${isApproved ? "approve" : "reject"} join request`);
     }
   };
 
@@ -177,6 +293,22 @@ const Department = () => {
       alert("Join request sent successfully");
     } catch (error) {
       console.error("Error sending join request:", error);
+
+      // Check for the specific error about duplicate requests
+      if (
+        error.response?.data?.error ===
+        "A similar pending request already exists"
+      ) {
+        // If there's already a request, update the UI as if the request was just sent
+        setRequestSentToDepartment((prev) => ({ ...prev, [deptId]: true }));
+        alert("You already have a pending request for this department");
+      } else {
+        // For other errors, show the general error message
+        alert(
+          "Error sending join request: " +
+            (error.response?.data?.error || error.message)
+        );
+      }
     }
   };
 
@@ -188,38 +320,34 @@ const Department = () => {
         type_demande: "sous_department",
         statut: "pending",
       });
-      alert("Join request sent successfully");
+      setRequestSentToSousDepartment((prev) => ({
+        ...prev,
+        [sousDeptId]: true,
+      }));
+      alert(
+        "Join request for sous-department sent successfully! An admin will review your request."
+      );
     } catch (error) {
       console.error("Error sending join request:", error);
-    }
-  };
 
-  const handleApproveJoinRequest = async (requestId, approved) => {
-    try {
-      await axios.put(`/api/join-requests/${requestId}`, {
-        statut: approved ? "approved" : "rejected",
-      });
-
-      setJoinRequests(
-        joinRequests.filter((req) => req.id_demande !== requestId)
-      );
-
-      if (approved) {
-        if (userRole === "superadmin") {
-          fetchSuperAdminData(userId);
-        } else if (userRole === "admin") {
-          fetchAdminData(userId);
-        } else {
-          fetchUserDataForRegularUser(userId);
-        }
+      // Check for the specific error about duplicate requests
+      if (
+        error.response?.data?.error ===
+        "A similar pending request already exists"
+      ) {
+        setRequestSentToSousDepartment((prev) => ({
+          ...prev,
+          [sousDeptId]: true,
+        }));
+        alert("You already have a pending request for this sous-department");
+      } else {
+        alert(
+          "Error sending join request: " +
+            (error.response?.data?.error || error.message)
+        );
       }
-
-      alert(`Request ${approved ? "approved" : "rejected"}`);
-    } catch (error) {
-      console.error("Error handling join request:", error);
     }
   };
-
   const renderSuperAdminView = () => (
     <div className="superadmin-view">
       <h2>Super Admin Dashboard</h2>
@@ -342,7 +470,6 @@ const Department = () => {
   const renderAdminView = () => (
     <div className="admin-view">
       <h2>Admin Dashboard</h2>
-
       <div className="section">
         <h3>My Sous-Departments</h3>
         <ul className="list-group">
@@ -364,7 +491,6 @@ const Department = () => {
           })}
         </ul>
       </div>
-
       <div className="section mt-4">
         <h3>Create New Sous-Department</h3>
         <form onSubmit={handleCreateSousDepartment}>
@@ -377,9 +503,9 @@ const Department = () => {
               required
             >
               <option value="">Select Department</option>
-              {/* Conditionally render only if adminManagedDepartments is an array */}
-              {Array.isArray(adminManagedDepartments) ? (
-                adminManagedDepartments.map((dept) => (
+              {/* Use userDepartments instead of adminManagedDepartments to ensure this works */}
+              {Array.isArray(userDepartments) ? (
+                userDepartments.map((dept) => (
                   <option key={dept.id_departement} value={dept.id_departement}>
                     {dept.nom}
                   </option>
@@ -412,30 +538,36 @@ const Department = () => {
           </button>
         </form>
       </div>
-
       <div className="section mt-4">
         <h3>My Departments</h3>
-        <ul className="list-group">
-          {userDepartments.map((dept) => (
-            <li key={dept.id_departement} className="list-group-item">
-              <h4>{dept.nom}</h4>
-              <p>{dept.description}</p>
-            </li>
-          ))}
-        </ul>
+        {adminManagedDepartments && adminManagedDepartments.length > 0 ? (
+          <ul className="list-group">
+            {adminManagedDepartments.map((dept) => (
+              <li key={dept.id_departement} className="list-group-item">
+                <h4>{dept.nom}</h4>
+                <p>{dept.description}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>You don't belong to any departments yet.</p>
+        )}
       </div>
-
       {/* SECTION FOR ADMIN TO JOIN DEPARTMENTS */}
       <div className="section mt-4">
         <h3>Available Departments to Join</h3>
         <ul className="list-group">
-          {departments.map((dept) => (
-            <li key={dept.id_departement} className="list-group-item">
-              <h4>{dept.nom}</h4>
-              <p>{dept.description}</p>
-              {!userDepartments.some(
-                (ud) => ud.id_departement === dept.id_departement
-              ) && (
+          {departments
+            .filter(
+              (dept) =>
+                !adminManagedDepartments.some(
+                  (myDept) => myDept.id_departement === dept.id_departement
+                )
+            )
+            .map((dept) => (
+              <li key={dept.id_departement} className="list-group-item">
+                <h4>{dept.nom}</h4>
+                <p>{dept.description}</p>
                 <button
                   className="btn btn-outline-primary btn-sm me-2"
                   onClick={() =>
@@ -447,15 +579,14 @@ const Department = () => {
                     ? "Request Sent"
                     : "Request to Join Department"}
                 </button>
-              )}
-            </li>
-          ))}
+              </li>
+            ))}
         </ul>
       </div>
-
       <div className="section mt-4">
         <h3>User Join Requests for Sous-Departments</h3>
-        {joinRequests.filter((req) => req.type_demande === "sous_department")
+        {joinRequests &&
+        joinRequests.filter((req) => req.type_demande === "sous_department")
           .length > 0 ? (
           <ul className="list-group">
             {joinRequests
@@ -492,7 +623,7 @@ const Department = () => {
               ))}
           </ul>
         ) : (
-          <p>No pending join requests from users</p>
+          <p>No pending join requests from users for sous-departments</p>
         )}
       </div>
     </div>
@@ -535,6 +666,8 @@ const Department = () => {
             <li key={dept.id_departement} className="list-group-item">
               <h4>{dept.nom}</h4>
               <p>{dept.description}</p>
+
+              {/* Request to join department button (if not already a member) */}
               {!userDepartments.some(
                 (ud) => ud.id_departement === dept.id_departement
               ) && (
@@ -550,6 +683,7 @@ const Department = () => {
                     : "Request to Join Department"}
                 </button>
               )}
+
               <h5>Sous-Departments:</h5>
               <ul>
                 {sousDepartments
@@ -575,8 +709,17 @@ const Department = () => {
                               sousDept.id_sous_departement
                             )
                           }
+                          disabled={
+                            requestSentToSousDepartment[
+                              sousDept.id_sous_departement
+                            ]
+                          }
                         >
-                          Request to Join
+                          {requestSentToSousDepartment[
+                            sousDept.id_sous_departement
+                          ]
+                            ? "Request Sent"
+                            : "Request to Join"}
                         </button>
                       )}
                     </li>

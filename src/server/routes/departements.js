@@ -231,11 +231,11 @@ router.get("/sousdepartments/:id", async (req, res) => {
 // Create a new sous-department
 router.post("/sousdepartments", async (req, res) => {
   try {
-    const { nom, description, id_departement } = req.body;
+    const { nom, description, id_departement, userId } = req.body; // Add userId
     
     // Validate input
-    if (!nom || !id_departement) {
-      return res.status(400).json({ error: "Sous-department name and department ID are required" });
+    if (!nom || !id_departement || !userId) {
+      return res.status(400).json({ error: "Sous-department name, department ID, and user ID are required" });
     }
     
     const pool = await poolPromise;
@@ -250,22 +250,44 @@ router.post("/sousdepartments", async (req, res) => {
       return res.status(404).json({ error: "Parent department not found" });
     }
     
-    const result = await pool
-      .request()
-      .input("nom", sql.VarChar, nom)
-      .input("description", sql.Text, description || null)
-      .input("id_departement", sql.Int, id_departement)
-      .query(
-        "INSERT INTO dbo.SousDepartement (nom, description, id_departement) OUTPUT INSERTED.* VALUES (@nom, @description, @id_departement)"
-      );
+    // Start a transaction to ensure both inserts happen or neither
+    const transaction = new sql.Transaction(pool);
     
-    res.status(201).json(result.recordset[0]);
+    try {
+      await transaction.begin();
+      
+      // Insert the sous-department
+      const insertResult = await transaction.request()
+        .input("nom", sql.VarChar, nom)
+        .input("description", sql.Text, description || null)
+        .input("id_departement", sql.Int, id_departement)
+        .query(
+          "INSERT INTO dbo.SousDepartement (nom, description, id_departement) OUTPUT INSERTED.* VALUES (@nom, @description, @id_departement)"
+        );
+      
+      const newSousDepartment = insertResult.recordset[0];
+      
+      // Associate the admin with the new sous-department
+      await transaction.request()
+        .input("userId", sql.Int, userId)
+        .input("sousDepartementId", sql.Int, newSousDepartment.id_sous_departement)
+        .query(
+          "INSERT INTO dbo.Admin_SousDepartement (id_utilisateur, id_sous_departement) VALUES (@userId, @sousDepartementId)"
+        );
+      
+      await transaction.commit();
+      
+      res.status(201).json(newSousDepartment);
+    } catch (transactionError) {
+      await transaction.rollback();
+      console.error("Error creating sous-department:", transactionError);
+      res.status(500).json({ error: "Error creating sous-department" });
+    }
   } catch (error) {
     console.error("Error creating sous-department:", error);
     res.status(500).json({ error: "Error creating sous-department" });
   }
 });
-
 // Get departments for a specific user (SuperAdmin)
 router.get("/users/:userId/departments", async (req, res) => {
   try {
@@ -429,37 +451,62 @@ router.get("/admin/:userId/sousdepartments", async (req, res) => {
   });
 
 // Get admin join requests for sous-departments
+// In your routes/departements.js file, find the endpoint:
 router.get("/admin/:userId/sousdepartments/joinrequests", async (req, res) => {
-    try {
-      const { userId } = req.params;
-  
-      if (!userId || userId === 'undefined') {
-        return res.status(400).json({ error: "Invalid user ID" });
-      }
-  
-      const pool = await poolPromise;
-  
-      const result = await pool
-        .request()
-        .input("userId", sql.Int, userId)
-        .query(`
-          SELECT dj.id_demande, dj.id_utilisateur, dj.id_sous_departement, dj.type_demande, dj.statut, dj.date_demande, sd.nom as nom_sous_departement, u.nom as nom_utilisateur
-          FROM dbo.DemandeJoin dj
-          JOIN dbo.SousDepartement sd ON dj.id_sous_departement = sd.id_sous_departement
-          JOIN dbo.Utilisateur u ON dj.id_utilisateur = u.id_utilisateur
-          JOIN dbo.Admin_SousDepartement asd ON sd.id_sous_departement = asd.id_sous_departement
-          WHERE asd.id_utilisateur = @userId
-          AND dj.type_demande = 'sous_department'
-          AND dj.statut = 'pending'
-        `);
-  
-      res.json(result.recordset);
-    } catch (error) {
-      console.error("Error fetching pending sous-department join requests:", error);
-      res.status(500).json({ error: "Error fetching pending sous-department join requests" });
-    }
-  });
+  try {
+    const { userId } = req.params;
+    console.log("Fetching sous-department join requests for admin:", userId);
 
+    if (!userId || userId === 'undefined') {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+
+    const pool = await poolPromise;
+
+    // First, log the sous-departments this admin manages
+    const sousDepartmentsResult = await pool
+      .request()
+      .input("userId", sql.Int, userId)
+      .query(`
+        SELECT sd.id_sous_departement, sd.nom 
+        FROM dbo.SousDepartement sd
+        INNER JOIN dbo.Admin_SousDepartement asd ON sd.id_sous_departement = asd.id_sous_departement
+        WHERE asd.id_utilisateur = @userId
+      `);
+    
+    console.log("Admin's Sous-Departments:", sousDepartmentsResult.recordset);
+
+    const result = await pool
+      .request()
+      .input("userId", sql.Int, userId)
+      .query(`
+        SELECT 
+          dj.id_demande, 
+          dj.id_utilisateur, 
+          dj.id_sous_departement, 
+          dj.type_demande, 
+          dj.statut, 
+          dj.date_demande, 
+          sd.nom as nom_sous_departement, 
+          u.nom as nom_utilisateur
+        FROM dbo.DemandeJoin dj
+        JOIN dbo.SousDepartement sd ON dj.id_sous_departement = sd.id_sous_departement
+        JOIN dbo.Utilisateur u ON dj.id_utilisateur = u.id_utilisateur
+        JOIN dbo.Admin_SousDepartement asd ON sd.id_sous_departement = asd.id_sous_departement
+        WHERE asd.id_utilisateur = @userId
+        AND dj.type_demande = 'sous_department'
+        AND dj.statut = 'pending'
+      `);
+    
+    console.log("Found join requests:", result.recordset);
+    console.log("Number of join requests:", result.recordset.length);
+    
+    res.json(result.recordset);
+  } catch (error) {
+    console.error("Error fetching pending sous-department join requests:", error);
+    res.status(500).json({ error: "Error fetching pending sous-department join requests" });
+  }
+});
 // Get pending join requests for departments (for SuperAdmin)
 // Get pending join requests for departments (for SuperAdmin)
 router.get("/join-requests/departments/pending", async (req, res) => {
@@ -512,5 +559,77 @@ router.get("/join-requests/departments/pending", async (req, res) => {
         console.error("Error fetching admin's departments:", error);
         res.status(500).json({ error: "Error fetching admin's departments" });
     }
+});
+// Update join request status
+router.put("/join-requests/:requestId", async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { statut } = req.body;
+
+    const pool = await poolPromise;
+
+    const result = await pool
+      .request()
+      .input('requestId', sql.Int, requestId)
+      .input('statut', sql.VarChar, statut)
+      .query(`
+        UPDATE dbo.DemandeJoin 
+        SET statut = @statut 
+        WHERE id_demande = @requestId
+      `);
+
+    res.json({ message: 'Join request updated successfully' });
+  } catch (error) {
+    console.error('Error updating join request:', error);
+    res.status(500).json({ error: 'Error updating join request' });
+  }
+});
+
+// Add user to sous-department
+router.post("/user-sousdepartment", async (req, res) => {
+  try {
+    const { userId, sousDepartementId } = req.body;
+
+    const pool = await poolPromise;
+
+    const result = await pool
+      .request()
+      .input('userId', sql.Int, userId)
+      .input('sousDepartementId', sql.Int, sousDepartementId)
+      .query(`
+        INSERT INTO dbo.User_SousDepartement 
+        (id_utilisateur, id_sous_departement) 
+        VALUES (@userId, @sousDepartementId)
+      `);
+
+    res.status(201).json({ message: 'User added to sous-department successfully' });
+  } catch (error) {
+    console.error('Error adding user to sous-department:', error);
+    res.status(500).json({ error: 'Error adding user to sous-department' });
+  }
+});
+
+// Add user to department
+router.post("/user-department", async (req, res) => {
+  try {
+    const { userId, departementId } = req.body;
+
+    const pool = await poolPromise;
+
+    const result = await pool
+      .request()
+      .input('userId', sql.Int, userId)
+      .input('departementId', sql.Int, departementId)
+      .query(`
+        INSERT INTO dbo.User_Departement 
+        (id_utilisateur, id_departement) 
+        VALUES (@userId, @departementId)
+      `);
+
+    res.status(201).json({ message: 'User added to department successfully' });
+  } catch (error) {
+    console.error('Error adding user to department:', error);
+    res.status(500).json({ error: 'Error adding user to department' });
+  }
 });
 module.exports = router;
