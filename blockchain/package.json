@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "compile": "truffle compile",
+    "migrate": "truffle migrate",
+    "develop": "truffle develop",
+    "test": "truffle test",
+    "ganache": "ganache"
+  }
+}
