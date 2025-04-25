@@ -166,8 +166,8 @@
   }
   
   .upload-button .icon-container {
-    background-color: transparent;
-    color: var(--primary-blue);
+    background-color: var(--primary-blue);
+    color: white;
   }
   
   .import-button .icon-container {
