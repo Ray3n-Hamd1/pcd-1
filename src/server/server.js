@@ -6,6 +6,7 @@ const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storag
 const multer = require('multer');
 const express = require("express");
 const signupRoute = require("./routes/signup"); // 🔗 Import the signup logic
+const bodyParser = require('body-parser');
 
 
 // Initialize Express app
@@ -52,8 +53,30 @@ console.log("accountKey:", accountKey);
     res.status(500).json({ message: 'Error retrieving encryption key', error: error.message });
   }
 });
+const loginRouter = require('./routes/login');
+app.use('/api', loginRouter);
+app.use(express.json());
 
+// Import routes
+const departementsRoute = require("./routes/departements");
+const joinRequestRoute = require("./routes/joinRequest");
+const loginRoute = require("./routes/login");
+const signupRoute = require("./routes/signup");
 
+// Mount routes
+app.use("/departements", departementsRoute); // For department-related endpoints
+app.use("/joinRequest", joinRequestRoute);  // For join request endpoints
+app.use("/login", loginRoute);              // For user login endpoints
+app.use("/signup", signupRoute);            // For user signup endpoints
+
+// Default error handling route (optional)
+app.use((req, res) => {
+  res.status(404).send("Not Found");
+});
+
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
 
 
 
