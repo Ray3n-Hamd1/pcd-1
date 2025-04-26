@@ -301,7 +301,7 @@ const joinRequestRoute = require("./routes/joinRequest");
 const loginRoute = require("./routes/login");
 
 // Mount routes - FIX: Mount directly to /api to match the route file structure
-app.use("/api", departementsRoute); // This is the critical fix
+app.use(departementsRoute); // instead of app.use("/api", departementsRoute);
 app.use("/api", joinRequestRoute); // Assuming joinRequest is also set up like departements
 app.use("/api", loginRoute);
 app.use("/api", signupRoute);

@@ -205,3 +205,35 @@
     font-size: 12px;
     border-top: 1px solid #eee;
   }
+  /* Add these styles to your Import.css file */
+
+.import-page .file-details {
+  width: 100%;
+  margin-bottom: 20px;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.import-page .file-detail {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.import-page .file-detail:nth-child(odd) {
+  background-color: #f8f9fa;
+}
+
+.import-page .detail-label {
+  color: #666;
+  font-weight: 500;
+}
+
+.import-page .detail-value {
+  color: #333;
+  text-align: right;
+  max-width: 65%;
+  word-break: break-word;
+}

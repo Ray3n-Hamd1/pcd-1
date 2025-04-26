@@ -1006,5 +1006,48 @@ router.get("/user/:userId/departments", async (req, res) => {
     res.status(500).json({ error: "Error fetching user departments" });
   }
 });
+// Add this to your departements.js routes file
 
+// Route to get files by sub-department
+router.get("/files/sousdepartment/:sousDepId", async (req, res) => {
+  try {
+    const { sousDepId } = req.params;
+    
+    if (!sousDepId) {
+      return res.status(400).json({ error: "Invalid sub-department ID" });
+    }
+    
+    const pool = await poolPromise;
+    
+    const result = await pool.request()
+      .input("sousDepId", sql.Int, sousDepId)
+      .query(`
+        SELECT 
+          f.id_fichier, 
+          f.nom_fichier, 
+          f.chemin_stockage, 
+          f.date_creation,
+          u.nom as uploaded_by_name,
+          sd.nom as sous_departement_name,
+          d.nom as departement_name
+        FROM 
+          dbo.Fichier f
+        JOIN 
+          dbo.Utilisateur u ON f.cree_par = u.id_utilisateur
+        JOIN 
+          dbo.SousDepartement sd ON f.id_sous_departement = sd.id_sous_departement
+        JOIN 
+          dbo.Departement d ON sd.id_departement = d.id_departement
+        WHERE 
+          f.id_sous_departement = @sousDepId
+        ORDER BY 
+          f.date_creation DESC
+      `);
+    
+    res.json(result.recordset);
+  } catch (error) {
+    console.error("Error fetching files:", error);
+    res.status(500).json({ error: "Error fetching files" });
+  }
+});
 module.exports = router;
