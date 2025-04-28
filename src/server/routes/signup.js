@@ -1,20 +1,20 @@
-const express = require("express");
-const { poolPromise, sql } = require("../db");
-const bcrypt = require("bcrypt"); // ✅ Import bcrypt
+import express from "express";
+import { poolPromise, sql } from "../db.js";
+import bcrypt from "bcrypt";
 const router = express.Router();
 
 router.post("/signup", async (req, res) => {
   const { fullName, email, password, role } = req.body;
 
   try {
-    // ✅ Hash the password
+    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10); // 10 is the salt rounds
 
     const pool = await poolPromise;
     await pool.request()
       .input("nom", sql.VarChar, fullName)
       .input("email", sql.VarChar, email)
-      .input("mot_de_passe", sql.VarChar, hashedPassword) // 🔒 store hashed password
+      .input("mot_de_passe", sql.VarChar, hashedPassword) // Store hashed password
       .input("role", sql.VarChar, role)
       .query(`
         INSERT INTO dbo.Utilisateur (nom, email, mot_de_passe, role)
@@ -28,4 +28,4 @@ router.post("/signup", async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

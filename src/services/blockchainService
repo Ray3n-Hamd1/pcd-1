@@ -1,0 +1,195 @@
+import Web3 from 'web3';
+import detectEthereumProvider from '@metamask/detect-provider';
+import FileEncryptionRegistryABI from '../../blockchain/contracts/FileEncryptionRegistry.json';
+
+class BlockchainService {
+  constructor() {
+    this.web3 = null;
+    this.contract = null;
+    this.account = null;
+    this.networkId = null;
+  }
+
+  async initMetaMask() {
+    try {
+      // Detect Ethereum provider
+      const provider = await detectEthereumProvider();
+
+      if (!provider) {
+        console.error('Please install MetaMask');
+        return false;
+      }
+
+      if (provider !== window.ethereum) {
+        console.error('Multiple wallets installed');
+        return false;
+      }
+
+      // Request account access
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+
+      // Initialize Web3
+      this.web3 = new Web3(window.ethereum);
+
+      // Get current account
+      const accounts = await this.web3.eth.getAccounts();
+      this.account = accounts[0];
+
+      // Get network ID
+      this.networkId = await this.web3.eth.net.getId();
+
+      // Load contract
+      const deployedNetwork = FileEncryptionRegistryABI.networks[this.networkId];
+      
+      if (!deployedNetwork) {
+        console.error('Contract not deployed on this network');
+        return false;
+      }
+
+      this.contract = new this.web3.eth.Contract(
+        FileEncryptionRegistryABI.abi,
+        deployedNetwork.address
+      );
+
+      // Listen for account changes
+      window.ethereum.on('accountsChanged', (accounts) => {
+        this.account = accounts[0];
+      });
+
+      // Listen for network changes
+      window.ethereum.on('chainChanged', () => {
+        window.location.reload();
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Blockchain connection error:', error);
+      return false;
+    }
+  }
+
+  // Key validation method
+  validateKey(key) {
+    // Check if key exists
+    if (!key) {
+        throw new Error('Encryption key is required');
+    }
+
+    // Check key length (adjust as needed)
+    if (key.length < 16 || key.length > 512) {
+        throw new Error('Invalid key length. Must be between 16 and 512 characters.');
+    }
+
+    // Optional: Less strict complexity check
+    const complexityChecks = [
+        /[A-Z]/.test(key),   // Uppercase
+        /[a-z]/.test(key),   // Lowercase
+        /[0-9]/.test(key),   // Numbers
+        /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(key) // Special characters
+    ];
+
+    // Require at least 2 out of 4 complexity types
+    const complexityCount = complexityChecks.filter(Boolean).length;
+
+    if (complexityCount < 2) {
+        throw new Error('Key complexity too low. Include at least 2 of: uppercase, lowercase, numbers, special characters');
+    }
+
+    return true;
+}
+
+// Alternative method with more lenient validation
+sanitizeKey(key) {
+    // Convert to string if not already
+    if (typeof key !== 'string') {
+        key = JSON.stringify(key);
+    }
+
+    // Remove potentially harmful characters
+    key = key.replace(/[^\x20-\x7E]/g, '');
+
+    // Truncate to maximum length if needed
+    return key.substring(0, 512);
+}
+
+// Modify registerFileOnBlockchain method
+async registerFileOnBlockchain(fileName, encryptionKey) {
+    if (!this.contract || !this.account) {
+        throw new Error('Blockchain not initialized');
+    }
+
+    try {
+        // Validate key
+        this.validateKey(encryptionKey);
+
+        // Sanitize key
+        const sanitizedKey = this.sanitizeKey(encryptionKey);
+
+        // Register file with sanitized key
+        const result = await this.contract.methods.registerFile(
+            fileName, 
+            sanitizedKey
+        ).send({ from: this.account });
+
+        // Extract file ID from event
+        const fileId = result.events.FileRegistered.returnValues.fileId;
+
+        return {
+            fileId: fileId,
+            transactionHash: result.transactionHash
+        };
+    } catch (error) {
+        console.error('Blockchain file registration error:', error);
+        throw error;
+    }
+}
+  async getFileMetadata(fileId) {
+    // Verify blockchain connection
+    if (!this.contract) {
+      throw new Error('Blockchain not initialized');
+    }
+    
+    try {
+      // Call contract method to get file metadata
+      const metadata = await this.contract.methods
+        .getFileMetadata(fileId)
+        .call();
+      
+      // Return structured metadata
+      return {
+        uploader: metadata.uploader,
+        fileName: metadata.fileName,
+        encryptionKey: metadata.encryptionKey, // Changed from encryptionKeyHash
+        uploadTimestamp: metadata.uploadTimestamp,
+        isActive: metadata.isActive
+      };
+    } catch (error) {
+      console.error('Error retrieving blockchain metadata:', error);
+      throw error;
+    }
+  }
+
+  // Additional method to check if user is an uploader
+  async isUploader(address) {
+    if (!this.contract) {
+      throw new Error('Blockchain not initialized');
+    }
+
+    try {
+      return await this.contract.methods.isUploader(address).call();
+    } catch (error) {
+      console.error('Error checking uploader status:', error);
+      throw error;
+    }
+  }
+
+  // Cleanup method
+  disconnect() {
+    this.web3 = null;
+    this.contract = null;
+    this.account = null;
+    this.networkId = null;
+  }
+}
+
+export default BlockchainService;

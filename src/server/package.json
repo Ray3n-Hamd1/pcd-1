@@ -2,6 +2,7 @@
   "name": "server",
   "version": "1.0.0",
   "main": "server.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server",
@@ -20,7 +21,8 @@
     "express": "^5.1.0",
     "fs": "^0.0.1-security",
     "mssql": "^11.0.1",
-    "multer": "^1.4.5-lts.2"
+    "multer": "^1.4.5-lts.2",
+    "web3": "^4.16.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"

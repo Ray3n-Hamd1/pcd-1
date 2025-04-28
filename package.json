@@ -11,15 +11,19 @@
   },
   "dependencies": {
     "@azure/storage-blob": "^12.27.0",
-    "axios": "^1.8.4",
+    "@metamask/detect-provider": "^2.0.0",
+    "axios": "^1.9.0",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
+    "crypto.js": "^3.3.4",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "mssql": "^11.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.5.1"
+    "react-router-dom": "^7.5.1",
+    "web3": "^4.16.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",

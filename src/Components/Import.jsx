@@ -1,6 +1,11 @@
+
 import React, { useState, useEffect } from "react";
 import "./Import.css";
 import DropDownMenu from "./DropDownMenu";
+import BlockchainService from '../services/blockchainService';
+import { decryptFile } from '../utils/encryption';
+// Import Web3 at the top of the file
+import Web3 from 'web3';
 
 // Logo component
 const Logo = () => {
@@ -150,7 +155,6 @@ const SearchBar = ({ onSearch }) => {
 };
 
 // Component for the document item in the list
-// Component for the document item in the list - updated to handle database file records
 const DocumentItem = ({ file, onSelect, isSelected }) => {
   // Format date if it's provided as a string
   const formatDate = (dateString) => {
@@ -273,9 +277,556 @@ const DocumentItem = ({ file, onSelect, isSelected }) => {
   );
 };
 
-// Component for the file preview on the right side
-// Component for the file preview on the right side - updated for database records
 const FilePreview = ({ selectedFile }) => {
+  const [blockchainService, setBlockchainService] = useState(null);
+  const [blockchainMetadata, setBlockchainMetadata] = useState(null);
+  const [retrievalError, setRetrievalError] = useState(null);
+  const [decryptionStatus, setDecryptionStatus] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [encryptionKey, setEncryptionKey] = useState(null);
+  const [web3Instance, setWeb3Instance] = useState(null);
+
+  // Initialize blockchain service and Web3 when component mounts
+  useEffect(() => {
+    const initBlockchainService = async () => {
+      try {
+        // Initialize Web3
+        const web3 = new Web3('http://127.0.0.1:7545'); // Use your Ganache URL
+        setWeb3Instance(web3);
+        
+        const service = new BlockchainService();
+        const connected = await service.initMetaMask();
+        if (connected) {
+          setBlockchainService(service);
+          console.log("MetaMask connected successfully");
+        } else {
+          console.error("Failed to connect to MetaMask");
+          setRetrievalError("Failed to connect to MetaMask. Please make sure it's installed and unlocked.");
+        }
+      } catch (error) {
+        console.error('Blockchain connection error:', error);
+        setRetrievalError(`Failed to connect to blockchain: ${error.message}`);
+      }
+    };
+
+    initBlockchainService();
+  }, []);
+
+  // Reset states when selected file changes
+  useEffect(() => {
+    if (selectedFile) {
+      setBlockchainMetadata(null);
+      setRetrievalError(null);
+      setDecryptionStatus(null);
+      setEncryptionKey(null);
+    }
+  }, [selectedFile]);
+
+  // Retrieve blockchain metadata when a file is selected
+  useEffect(() => {
+    const retrieveBlockchainMetadata = async () => {
+      if (selectedFile && selectedFile.blockchain_hash && blockchainService) {
+        try {
+          console.log("Retrieving metadata for hash:", selectedFile.blockchain_hash);
+          // Retrieve metadata from blockchain using file's blockchain hash
+          const metadata = await blockchainService.getFileMetadata(selectedFile.blockchain_hash);
+          console.log("Retrieved blockchain metadata:", metadata);
+          setBlockchainMetadata(metadata);
+          setRetrievalError(null);
+        } catch (error) {
+          console.error('Blockchain metadata retrieval error:', error);
+          setRetrievalError(`Failed to retrieve blockchain metadata: ${error.message}`);
+          setBlockchainMetadata(null);
+        }
+      }
+    };
+
+    if (selectedFile && selectedFile.blockchain_hash && blockchainService) {
+      retrieveBlockchainMetadata();
+    }
+  }, [selectedFile, blockchainService]);
+
+  const handleRetrieveBlockchainKey = async () => {
+    // IMMEDIATE DEBUG LOGS
+    
+    console.log("Function called with selectedFile:", selectedFile);
+    console.log("Function called with selectedFile:", selectedFile);
+
+  if (!selectedFile || !selectedFile.id_fichier) {
+    console.log("No file selected");
+    setRetrievalError('Please select a file first');
+    return;
+  }
+
+  setIsProcessing(true);
+  setRetrievalError(null);
+
+  try {
+    // Get the transaction hash using file ID
+    const response = await fetch(`http://localhost:5000/retrieveFile/${selectedFile.id_fichier}`);
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Failed to fetch transaction hash from database: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const txHash = data.transactionHash; // Use the correct property name
+
+    if (!txHash) {
+      throw new Error('No transaction hash found for this file');
+    }
+
+    console.log("Retrieved transaction hash:", txHash);
+
+    // Rest of your code for Web3 interaction...
+    const web3 = new Web3('http://127.0.0.1:7545');
+    const contractAddress = '0xfe526fB1A4aF3aDa856925a8ee248a13e772466D';
+      const contractABI = [
+        {
+            "inputs": [],
+            "stateMutability": "nonpayable",
+            "type": "constructor"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "bytes32",
+                    "name": "fileId",
+                    "type": "bytes32"
+                }
+            ],
+            "name": "FileArchived",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "bytes32",
+                    "name": "fileId",
+                    "type": "bytes32"
+                },
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "uploader",
+                    "type": "address"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "string",
+                    "name": "fileName",
+                    "type": "string"
+                }
+            ],
+            "name": "FileRegistered",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "previousOwner",
+                    "type": "address"
+                },
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "newOwner",
+                    "type": "address"
+                }
+            ],
+            "name": "OwnershipTransferred",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "uploader",
+                    "type": "address"
+                }
+            ],
+            "name": "UploaderAdded",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "uploader",
+                    "type": "address"
+                }
+            ],
+            "name": "UploaderRemoved",
+            "type": "event"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "uploaderAddress",
+                    "type": "address"
+                }
+            ],
+            "name": "addUploader",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "bytes32",
+                    "name": "_fileId",
+                    "type": "bytes32"
+                }
+            ],
+            "name": "archiveFile",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "bytes32",
+                    "name": "_fileId",
+                    "type": "bytes32"
+                }
+            ],
+            "name": "getFileMetadata",
+            "outputs": [
+                {
+                    "components": [
+                        {
+                            "internalType": "address",
+                            "name": "uploader",
+                            "type": "address"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "uploadTimestamp",
+                            "type": "uint256"
+                        },
+                        {
+                            "internalType": "string",
+                            "name": "fileName",
+                            "type": "string"
+                        },
+                        {
+                            "internalType": "string",
+                            "name": "encryptionKeyHash",
+                            "type": "string"
+                        },
+                        {
+                            "internalType": "bool",
+                            "name": "isActive",
+                            "type": "bool"
+                        }
+                    ],
+                    "internalType": "struct FileEncryptionRegistry.FileMetadata",
+                    "name": "",
+                    "type": "tuple"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "getUserFiles",
+            "outputs": [
+                {
+                    "internalType": "bytes32[]",
+                    "name": "",
+                    "type": "bytes32[]"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "_address",
+                    "type": "address"
+                }
+            ],
+            "name": "isUploader",
+            "outputs": [
+                {
+                    "internalType": "bool",
+                    "name": "",
+                    "type": "bool"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "owner",
+            "outputs": [
+                {
+                    "internalType": "address",
+                    "name": "",
+                    "type": "address"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "string",
+                    "name": "_fileName",
+                    "type": "string"
+                },
+                {
+                    "internalType": "string",
+                    "name": "_encryptionKeyHash",
+                    "type": "string"
+                }
+            ],
+            "name": "registerFile",
+            "outputs": [
+                {
+                    "internalType": "bytes32",
+                    "name": "",
+                    "type": "bytes32"
+                }
+            ],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "uploaderAddress",
+                    "type": "address"
+                }
+            ],
+            "name": "removeUploader",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "totalFiles",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "newOwner",
+                    "type": "address"
+                }
+            ],
+            "name": "transferOwnership",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "",
+                    "type": "address"
+                }
+            ],
+            "name": "userProfiles",
+            "outputs": [
+                {
+                    "internalType": "bool",
+                    "name": "isUploader",
+                    "type": "bool"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "totalFilesUploaded",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        }
+    ];
+      const transaction = await web3.eth.getTransaction(txHash);
+
+      // Create contract instance
+      const contract = new web3.eth.Contract(contractABI, contractAddress);
+  
+      // Check if txHash is valid
+      if (!txHash || !web3.utils.isHexStrict(txHash)) {
+        throw new Error('Invalid transaction hash retrieved from database');
+      }
+  
+      try {
+        console.log("Attempting to get transaction with hash:", txHash);
+        
+        // Get transaction details
+        let transaction;
+        try {
+          transaction = await web3.eth.getTransaction(txHash);
+          console.log("Transaction retrieved:", transaction);
+        } catch (txError) {
+          console.error("Error getting transaction:", txError);
+          throw new Error(`Error retrieving transaction: ${txError.message}`);
+        }
+        
+        if (!transaction) {
+          console.error("Transaction not found");
+          throw new Error(`Transaction with hash ${txHash} not found on the blockchain`);
+        }
+        
+        try {
+          const receipt = await web3.eth.getTransactionReceipt(txHash);
+          console.log("Transaction receipt:", receipt);
+        } catch (receiptError) {
+          console.warn("Failed to get transaction receipt, but continuing:", receiptError);
+        }
+        
+        console.log('\n📦 Transaction Information:');
+        console.log('=======================');
+        console.log(`Hash: ${transaction.hash}`);
+        console.log(`Block Number: ${transaction.blockNumber}`);
+        console.log(`From: ${transaction.from}`);
+        console.log(`To: ${transaction.to}`);
+        console.log(`Input data length: ${transaction.input ? transaction.input.length : 'N/A'}`);
+    
+        // Decode the input data - make sure the input data exists and has enough length
+        if (!transaction.input || transaction.input.length < 10) {
+          console.error("Transaction input data is missing or invalid:", transaction.input);
+          
+          // FALLBACK: If blockchain call fails, use the data from the database if it's already in key format
+          if (data.encryptionKey && typeof data.encryptionKey === 'string' && 
+             (data.encryptionKey.startsWith('{') || data.encryptionKey.includes('":"'))) {
+            console.log("Using encryption key directly from database as fallback");
+            setEncryptionKey(data.encryptionKey);
+            setDecryptionStatus('Key retrieved from database (blockchain access failed)');
+            return;
+          }
+          
+          throw new Error('Transaction input data is missing or invalid');
+        }
+        
+        try {
+          const inputData = transaction.input.slice(10);
+          console.log("Input data for decoding:", inputData.substring(0, 100) + "...");
+          
+          const decodedParameters = web3.eth.abi.decodeParameters(
+            ['string', 'string'],
+            inputData
+          );
+          
+          console.log('\n📄 Decoded Input Data:');
+          console.log('===================');
+          console.log(`File Name: ${decodedParameters[0]}`);
+          console.log(`Encryption Key: ${decodedParameters[1] ? decodedParameters[1].substring(0, 20) + "..." : "N/A"}`);
+      
+          // Store the actual encryption key
+          setEncryptionKey(decodedParameters[1]);
+          setDecryptionStatus('Key retrieved successfully');
+          alert("Success! Encryption key retrieved. You can now decrypt the file.");
+        } catch (decodeError) {
+          console.error("Error decoding parameters:", decodeError);
+          throw new Error(`Failed to decode transaction data: ${decodeError.message}`);
+        }
+      } catch (error) {
+        console.error('Transaction retrieval error:', error);
+        alert(`Error: ${error.message}`);
+        throw new Error(`Failed to retrieve or decode transaction: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('❌ Error:', error);
+      console.error('Error Details:', error.message);
+      setRetrievalError(`Failed to retrieve encryption key: ${error.message}`);
+      setDecryptionStatus(null);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  const handleDecryptAndDownload = async () => {
+    try {
+      setIsProcessing(true);
+      setRetrievalError(null);
+  
+      // Get metadata and IV
+      const metadataResponse = await fetch(`http://localhost:5000/retrieveFile/${selectedFile.id_fichier}`);
+      if (!metadataResponse.ok) {
+        throw new Error('Failed to retrieve file metadata');
+      }
+      const metadata = await metadataResponse.json();
+      
+      // Log metadata for debugging
+      console.log("Retrieved metadata:", {
+        iv: metadata.iv,
+        ivLength: metadata.iv ? metadata.iv.length : 0,
+        key: encryptionKey ? encryptionKey.substring(0, 20) + '...' : 'missing'
+      });
+  
+      if (!metadata.iv || !encryptionKey) {
+        throw new Error('Missing IV or encryption key');
+      }
+  
+      // Get the encrypted file
+      const fileResponse = await fetch(`http://localhost:5000/downloadFile/${selectedFile.id_fichier}`);
+      if (!fileResponse.ok) {
+        throw new Error('Failed to download encrypted file');
+      }
+      
+      const encryptedBlob = await fileResponse.blob();
+  
+      // Attempt decryption
+      const decryptedFile = await decryptFile(
+        encryptedBlob,
+        encryptionKey,
+        metadata.iv
+      );
+  
+      // Download the decrypted file
+      const originalFileName = selectedFile.nom_fichier.replace('.encrypted', '');
+      const downloadLink = document.createElement('a');
+      downloadLink.href = URL.createObjectURL(decryptedFile);
+      downloadLink.download = originalFileName;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+  
+      setDecryptionStatus('File decrypted and downloaded successfully');
+    } catch (error) {
+      console.error('Decryption process error:', error);
+      setRetrievalError(`Decryption failed: ${error.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
   // Get file name - handle different formats from database or API
   const getFileName = () => {
     if (!selectedFile) return "Select a file";
@@ -291,6 +842,7 @@ const FilePreview = ({ selectedFile }) => {
     if (selectedFile.size) return selectedFile.size;
     return "Unknown size";
   };
+ 
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -406,15 +958,42 @@ const FilePreview = ({ selectedFile }) => {
                 <span className="detail-value">Azure Cloud</span>
               </div>
             )}
+
+            {selectedFile.blockchain_hash && (
+              <div className="file-detail">
+                <span className="detail-label">Blockchain Hash:</span>
+                <span className="detail-value">{`${selectedFile.blockchain_hash.substring(0, 8)}...`}</span>
+              </div>
+            )}
           </div>
           
-          <button className="btn-retrieve">Retrieve key from blockchain</button>
-          <button className="btn-decrypt">decrypt and download</button>
+          {retrievalError && <div className="error-message">{retrievalError}</div>}
+          {decryptionStatus && <div className="success-message">{decryptionStatus}</div>}
+          
+          <button 
+            className="btn-retrieve" 
+            
+            onClick={handleRetrieveBlockchainKey}
+          
+          >
+            {isProcessing && decryptionStatus !== 'Key retrieved successfully' ? 'Retrieving key...' : 'Retrieve key from blockchain'}
+          </button>
+          
+          <button 
+            className="btn-decrypt" 
+            onClick={handleDecryptAndDownload}
+            
+          >
+            {isProcessing && decryptionStatus === 'Key retrieved successfully' ? 'Decrypting...' : 'Decrypt and download'}
+          </button>
         </>
       )}
     </div>
   );
 };
+
+
+
 
 // Main app component
 const Import = () => {
@@ -432,15 +1011,6 @@ const Import = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [error, setError] = useState(null);
 
-  // Sample data for demo if needed
-  const sampleFiles = [
-    { name: "report.pdf", size: "35.5 ko", date: "29 fev,2025" },
-    { name: "presentati.pdf", size: "35.5 ko", date: "29 fev,2025" },
-    { name: "cv.txt", size: "35.5 ko", date: "29 fev,2025" },
-    { name: "contrat.word", size: "35.5 ko", date: "29 fev,2025" },
-    { name: "rapport.pdf", size: "35.5 ko", date: "29 fev,2025" },
-  ];
-
   // Fetch user info and departments on component mount
   useEffect(() => {
     const fetchUserData = async () => {
@@ -449,6 +1019,7 @@ const Import = () => {
         if (!userString) {
           console.error("User not found in localStorage");
           setLoading(false);
+          setError("User not found. Please log in again.");
           return;
         }
 
@@ -467,7 +1038,7 @@ const Import = () => {
       } catch (error) {
         console.error("Error fetching user data:", error);
         setLoading(false);
-        setError("Error loading user data");
+        setError("Error loading user data. Please refresh the page or log in again.");
       }
     };
 
@@ -499,11 +1070,10 @@ const Import = () => {
     if (!searchTerm) {
       setFilteredFiles(files);
     } else {
-      const filtered = files.filter((file) =>
-        (file.nom_fichier || file.name)
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase())
-      );
+      const filtered = files.filter((file) => {
+        const fileName = file.nom_fichier || file.name || "";
+        return fileName.toLowerCase().includes(searchTerm.toLowerCase());
+      });
       setFilteredFiles(filtered);
     }
   }, [files, searchTerm]);
@@ -514,20 +1084,19 @@ const Import = () => {
       const response = await fetch(
         `http://localhost:5000/superadmin/${id}/departments`
       );
-      if (response.ok) {
-        const data = await response.json();
-        setDepartments(data);
-      } else {
-        console.error("Failed to fetch superadmin departments");
-        // For demo, use empty array
-        setDepartments([]);
+      
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
       }
+      
+      const data = await response.json();
+      setDepartments(data);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching superadmin departments:", error);
       setDepartments([]);
       setLoading(false);
-      setError("Error loading departments");
+      setError(`Error loading departments: ${error.message}`);
     }
   };
 
@@ -536,20 +1105,19 @@ const Import = () => {
       const response = await fetch(
         `http://localhost:5000/admin/${id}/departments`
       );
-      if (response.ok) {
-        const data = await response.json();
-        setDepartments(data);
-      } else {
-        console.error("Failed to fetch admin departments");
-        // For demo, use empty array
-        setDepartments([]);
+      
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
       }
+      
+      const data = await response.json();
+      setDepartments(data);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching admin departments:", error);
       setDepartments([]);
       setLoading(false);
-      setError("Error loading departments");
+      setError(`Error loading departments: ${error.message}`);
     }
   };
 
@@ -558,45 +1126,46 @@ const Import = () => {
       const response = await fetch(
         `http://localhost:5000/user/${id}/departments`
       );
-      if (response.ok) {
-        const data = await response.json();
-        setDepartments(data);
-      } else {
-        console.error("Failed to fetch user departments");
-        // For demo, use empty array
-        setDepartments([]);
+      
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
       }
+      
+      const data = await response.json();
+      setDepartments(data);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching user departments:", error);
       setDepartments([]);
       setLoading(false);
-      setError("Error loading departments");
+      setError(`Error loading departments: ${error.message}`);
     }
   };
 
   // Function to fetch sub-departments for a department
   const fetchSubDepartments = async (departmentId) => {
     try {
+      setLoading(true);
       const response = await fetch(
         `http://localhost:5000/departments/${departmentId}/sousdepartments`
       );
-      if (response.ok) {
-        const data = await response.json();
-        setSubDepartments(data);
-      } else {
-        console.error("Failed to fetch sub-departments");
-        setSubDepartments([]);
+      
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
       }
+      
+      const data = await response.json();
+      setSubDepartments(data);
+      setLoading(false);
     } catch (error) {
       console.error("Error fetching sub-departments:", error);
       setSubDepartments([]);
-      setError("Error loading sub-departments");
+      setLoading(false);
+      setError(`Error loading sub-departments: ${error.message}`);
     }
   };
 
   // Function to fetch files for a sub-department
-  // Function to fetch files for a sub-department - updated to handle actual database records
   const fetchFiles = async (subDepartmentId) => {
     try {
       setLoading(true);

@@ -7,7 +7,7 @@ contract FileEncryptionRegistry {
         address uploader;
         uint256 uploadTimestamp;
         string fileName;
-        string encryptionKeyHash;
+        string encryptionKey;
         bool isActive;
     }
 
@@ -23,6 +23,9 @@ contract FileEncryptionRegistry {
     mapping(address => bytes32[]) private userFiles;
     uint256 public totalFiles;
 
+    // Reentrancy guard
+    bool private locked;
+
     // Events
     event OwnershipTransferred(
         address indexed previousOwner, 
@@ -33,7 +36,8 @@ contract FileEncryptionRegistry {
     event FileRegistered(
         bytes32 indexed fileId, 
         address indexed uploader, 
-        string fileName
+        string fileName,
+        string encryptionKey
     );
     event FileArchived(bytes32 indexed fileId);
 
@@ -51,15 +55,13 @@ contract FileEncryptionRegistry {
         _;
     }
 
+    // Corrected reentrancy guard modifier
     modifier noReentrant() {
         require(!locked, "Reentrant call");
         locked = true;
         _;
         locked = false;
     }
-
-    // Reentrancy guard
-    bool private locked;
 
     // Constructor
     constructor() {
@@ -101,8 +103,11 @@ contract FileEncryptionRegistry {
     // File Management Functions
     function registerFile(
         string memory _fileName,
-        string memory _encryptionKeyHash
+        string memory _encryptionKey
     ) public onlyUploader noReentrant returns (bytes32) {
+        // Validate key length
+        require(bytes(_encryptionKey).length >= 16 && bytes(_encryptionKey).length <= 512, "Invalid key length");
+
         // Generate unique file identifier
         bytes32 fileId = keccak256(abi.encodePacked(
             _fileName, 
@@ -116,7 +121,7 @@ contract FileEncryptionRegistry {
             uploader: msg.sender,
             uploadTimestamp: block.timestamp,
             fileName: _fileName,
-            encryptionKeyHash: _encryptionKeyHash,
+            encryptionKey: _encryptionKey,
             isActive: true
         });
 
@@ -127,8 +132,8 @@ contract FileEncryptionRegistry {
         totalFiles++;
         userProfiles[msg.sender].totalFilesUploaded++;
 
-        // Emit event
-        emit FileRegistered(fileId, msg.sender, _fileName);
+        // Emit event with the encryption key
+        emit FileRegistered(fileId, msg.sender, _fileName, _encryptionKey);
 
         return fileId;
     }
@@ -164,4 +169,8 @@ contract FileEncryptionRegistry {
     function isUploader(address _address) public view returns (bool) {
         return userProfiles[_address].isUploader;
     }
+    function getEncryptionKey(bytes32 _fileId) public view returns (string memory) {
+    require(fileRegistry[_fileId].isActive, "File not found");
+    return fileRegistry[_fileId].encryptionKey;
+}
 }

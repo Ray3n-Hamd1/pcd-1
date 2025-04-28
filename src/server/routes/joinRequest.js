@@ -1,6 +1,6 @@
-const express = require("express");
+import express from "express";
 const router = express.Router();
-const { sql, poolPromise } = require("../db");
+import { sql, poolPromise } from "../db.js";
 
 // Create a new join request
 router.post("/join-requests", async (req, res) => {
@@ -457,4 +457,4 @@ router.post("/debug/test-insert", async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

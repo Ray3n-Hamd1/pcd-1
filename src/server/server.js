@@ -1,15 +1,17 @@
 // Updated server.js with fixed queries
 // Import the necessary modules
-require('dotenv').config({ path: '../../server.env' });
-const cors = require('cors');
-const fs = require('fs');
-const { BlobServiceClient, StorageSharedKeyCredential } = require('@azure/storage-blob');
-const multer = require('multer');
-const express = require("express");
-const signupRoute = require("./routes/signup"); // 🔗 Import the signup logic
-const bodyParser = require('body-parser');
-const { v4: uuidv4 } = require('uuid');
-const { sql, poolPromise } = require("./db");
+import dotenv from 'dotenv';
+dotenv.config({ path: '../../server.env' });
+import cors from 'cors';
+import fs from 'fs';
+import { BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
+import multer from 'multer';
+import express from 'express';
+import signupRoute from './routes/signup.js';
+import bodyParser from 'body-parser';
+import { v4 as uuidv4 } from 'uuid';
+import { sql, poolPromise } from './db.js';
+import contract from './contract.js';
 
 // Initialize Express app
 const app = express();
@@ -104,7 +106,8 @@ app.post('/saveEncryptionData', async (req, res) => {
       encryptionKey, 
       iv, 
       userId, 
-      sousDepId 
+      sousDepId ,
+      transactionHash 
     } = req.body;
 
     console.log("Saving encryption data for:", originalName);
@@ -137,20 +140,24 @@ app.post('/saveEncryptionData', async (req, res) => {
         `);
       
       const fileId = insertFileResult.recordset[0].id_fichier;
-      
+  
       // 2. Insert encryption key record with the correct column names from your database
-      await transaction.request()
-        .input("id_fichier", sql.Int, fileId)
-        .input("hash_blockchain", sql.VarChar, encryptionKey)
-        .input("algo", sql.VarChar, iv)
-        .input("statut", sql.VarChar, "active")
-        .input("date_creation", sql.DateTime, new Date())
-        .query(`
-          INSERT INTO dbo.EncryptionKey 
-          (id_fichier, hash_blockchain, algo, statut, date_creation) 
-          VALUES (@id_fichier, @hash_blockchain, @algo, @statut, @date_creation)
-        `);
-      
+      // Step 1: Interact with blockchain
+
+
+// Step 2: Save txHash in your database
+await transaction.request()
+  .input("id_fichier", sql.Int, fileId)
+  .input("hash_blockchain", sql.VarChar, transactionHash )  // <-- now real txHash
+  .input("algo", sql.VarChar, iv)
+  .input("statut", sql.VarChar, "active")
+  .input("date_creation", sql.DateTime, new Date())
+  .query(`
+    INSERT INTO dbo.EncryptionKey 
+    (id_fichier, hash_blockchain, algo, statut, date_creation) 
+    VALUES (@id_fichier, @hash_blockchain, @algo, @statut, @date_creation)
+  `);
+
       await transaction.commit();
       
       console.log("Encryption data saved successfully for file ID:", fileId);
@@ -175,7 +182,132 @@ app.post('/saveEncryptionData', async (req, res) => {
     });
   }
 });
+// Helper function to convert stream to buffer
+async function streamToBuffer(readableStream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    readableStream.on('data', (data) => {
+      chunks.push(data instanceof Buffer ? data : Buffer.from(data));
+    });
+    readableStream.on('end', () => {
+      resolve(Buffer.concat(chunks));
+    });
+    readableStream.on('error', reject);
+  });
+}
+//downloading the file
+app.get('/downloadFile/:fileId', async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    
+    // Get file metadata from database
+    const pool = await poolPromise;
+    const fileResult = await pool.request()
+      .input('fileId', sql.Int, fileId)
+      .query(`
+        SELECT 
+          f.nom_fichier AS fileName, 
+          f.chemin_stockage AS blobUrl,
+          ek.algo AS iv
+        FROM dbo.Fichier f
+        JOIN dbo.EncryptionKey ek ON f.id_fichier = ek.id_fichier
+        WHERE f.id_fichier = @fileId
+      `);
 
+    if (fileResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+
+    const fileData = fileResult.recordset[0];
+
+    // Configure Azure storage client
+    const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME;
+    const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME;
+    const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY;
+    
+    const credential = new StorageSharedKeyCredential(accountName, accountKey);
+    const blobServiceClient = new BlobServiceClient(
+      `https://${accountName}.blob.core.windows.net`,
+      credential
+    );
+    
+    // Get container and blob clients
+    const containerClient = blobServiceClient.getContainerClient(containerName);
+    const blobName = fileData.blobUrl.split('/').pop(); // Get filename from URL
+    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+    
+    // Download the blob
+    const downloadResponse = await blockBlobClient.download();
+    const blobBody = await streamToBuffer(downloadResponse.readableStreamBody);
+    
+    // Send file back to client
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename=${fileData.fileName}`);
+    res.send(blobBody);
+
+  } catch (error) {
+    console.error('File download error:', error);
+    res.status(500).json({ 
+      message: 'File download error', 
+      details: error.message 
+    });
+  }
+});
+
+
+//retrieval 
+// In server.js, modify the retrieveFile endpoint
+app.get('/retrieveFile/:fileId', async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    
+    // Modified query to explicitly get the IV from algo column
+    const pool = await poolPromise;
+    const fileResult = await pool.request()
+      .input('fileId', sql.Int, fileId)
+      .query(`
+        SELECT 
+          f.nom_fichier AS fileName, 
+          f.chemin_stockage AS blobUrl, 
+          ek.hash_blockchain AS transactionHash,
+          ek.algo AS iv,  /* Explicitly select algo as iv */
+          ek.statut AS status
+        FROM dbo.Fichier f
+        JOIN dbo.EncryptionKey ek ON f.id_fichier = ek.id_fichier
+        WHERE f.id_fichier = @fileId
+      `);
+
+    // Handle file not found
+    if (fileResult.recordset.length === 0) {
+      return res.status(404).json({ 
+        message: 'File not found in database',
+        fileId: fileId 
+      });
+    }
+
+    const fileMetadata = fileResult.recordset[0];
+
+    // Add debug logging
+    console.log("Retrieved file metadata:", {
+      fileName: fileMetadata.fileName,
+      hasIV: !!fileMetadata.iv,
+      ivValue: fileMetadata.iv
+    });
+
+    res.json({
+      fileName: fileMetadata.fileName,
+      blobUrl: fileMetadata.blobUrl,
+      transactionHash: fileMetadata.transactionHash,
+      iv: fileMetadata.iv  // Make sure IV is included in response
+    });
+  } catch (error) {
+    console.error('File retrieval error:', error);
+    res.status(500).json({ 
+      message: 'File retrieval error', 
+      details: error.message 
+    });
+  }
+});
 // Department-related routes
 // Get departments for a superadmin
 app.get("/superadmin/:userId/departments", async (req, res) => {
@@ -296,12 +428,12 @@ app.get("/departments/:departmentId/sousdepartments", async (req, res) => {
 });
 
 // Import routes
-const departementsRoute = require("./routes/departements");
-const joinRequestRoute = require("./routes/joinRequest");
-const loginRoute = require("./routes/login");
+import departementRoutes from './routes/departements.js';
+import joinRequestRoute from './routes/joinRequest.js';
+import loginRoute from './routes/login.js';
 
 // Mount routes - FIX: Mount directly to /api to match the route file structure
-app.use(departementsRoute); // instead of app.use("/api", departementsRoute);
+app.use(departementRoutes); // instead of app.use("/api", departementsRoute);
 app.use("/api", joinRequestRoute); // Assuming joinRequest is also set up like departements
 app.use("/api", loginRoute);
 app.use("/api", signupRoute);

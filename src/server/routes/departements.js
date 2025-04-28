@@ -1,6 +1,7 @@
-const express = require("express");
+import express from "express";
 const router = express.Router();
-const { sql, poolPromise } = require("../db");
+import { sql, poolPromise } from "../db.js";
+
 
 // Get all departments
 router.get("/departments", async (req, res) => {
@@ -1050,4 +1051,4 @@ router.get("/files/sousdepartment/:sousDepId", async (req, res) => {
     res.status(500).json({ error: "Error fetching files" });
   }
 });
-module.exports = router;
+export default router;

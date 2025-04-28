@@ -1,6 +1,6 @@
-const express = require("express");
-const { poolPromise, sql } = require("../db");
-const bcrypt = require("bcrypt");
+import express from "express";
+import { poolPromise, sql } from "../db.js";
+import bcrypt from "bcrypt";
 
 const router = express.Router();
 
@@ -41,4 +41,4 @@ router.post("/login", async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

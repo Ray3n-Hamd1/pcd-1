@@ -5,5 +5,8 @@
     "develop": "truffle develop",
     "test": "truffle test",
     "ganache": "ganache"
+  },
+  "dependencies": {
+    "web3": "^1.10.0"
   }
 }
