@@ -157,7 +157,6 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100%;
   }
   
   .preview-icon {
@@ -236,4 +235,81 @@
   text-align: right;
   max-width: 65%;
   word-break: break-word;
+}
+/* Add these CSS rules to your existing Import.css file */
+
+/* Priority styles for document items */
+.document-item.priority-user {
+  border-left: 4px solid #36B37E; /* Green for User priority */
+}
+
+.document-item.priority-admin {
+  border-left: 4px solid #FFAB00; /* Yellow/Orange for Admin priority */
+}
+
+.document-item.priority-superadmin {
+  border-left: 4px solid #FF5630; /* Red for Super Admin priority */
+}
+
+/* Priority label in document item */
+.document-priority {
+  display: inline-block;
+  margin-right: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.priority-user .document-priority {
+  background-color: rgba(54, 179, 126, 0.2);
+  color: #36B37E;
+}
+
+.priority-admin .document-priority {
+  background-color: rgba(255, 171, 0, 0.2);
+  color: #975600;
+}
+
+.priority-superadmin .document-priority {
+  background-color: rgba(255, 86, 48, 0.2);
+  color: #CB2E0F;
+}
+
+/* Priority in file details */
+.file-detail .detail-value {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* No access message */
+.no-access-message {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+/* Empty state message */
+.no-files-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: #666;
+  text-align: center;
+}
+
+.no-files-message:before {
+  content: '';
+  width: 60px;
+  height: 60px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z'%3E%3C/path%3E%3Cpolyline points='13 2 13 9 20 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: contain;
+  margin-bottom: 15px;
+  opacity: 0.5;
 }

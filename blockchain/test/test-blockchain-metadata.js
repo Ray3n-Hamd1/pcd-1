@@ -386,5 +386,5 @@ async function getTransactionDetails(txHash) {
 }
 
 // Use the provided transaction hash
-const txHash = '0x94e8a8b6b0a165d2996cf7df85a87b56e6ac6eb79781269788bdc4fefd566b7b';
+const txHash = '0x8db895e3421355ae19bdb1374882c2af411c7dcb42635bd33d8042c704c68c7f';
 getTransactionDetails(txHash);

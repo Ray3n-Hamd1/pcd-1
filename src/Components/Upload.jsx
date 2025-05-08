@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import "./Upload.css";
 import { encryptFile } from "../utils/encryption";
-import BlockchainService from '../services/blockchainService';
-import Web3 from 'web3';
+import BlockchainService from "../services/blockchainService";
+import Web3 from "web3";
 
 import DropDownMenu from "./DropDownMenu";
 
@@ -24,26 +24,31 @@ const Upload = () => {
   const [subDepartments, setSubDepartments] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const [selectedSubDepartment, setSelectedSubDepartment] = useState("");
+
+  // File priority state
+  const [filePriorities, setFilePriorities] = useState({});
+  const priorityOptions = ["User", "Admin", "Super Admin"];
+
   //blockchain
   const [blockchainService, setBlockchainService] = useState(null);
-const [isMetaMaskConnected, setIsMetaMaskConnected] = useState(false);
-const [blockchainStatus, setBlockchainStatus] = useState({});
-const [retrievalError, setRetrievalError] = useState(null);
+  const [isMetaMaskConnected, setIsMetaMaskConnected] = useState(false);
+  const [blockchainStatus, setBlockchainStatus] = useState({});
+  const [retrievalError, setRetrievalError] = useState(null);
 
-// Add this to your existing useEffect section
-useEffect(() => {
-  const initBlockchain = async () => {
-    const service = new BlockchainService();
-    const connected = await service.initMetaMask();
-    
-    if (connected) {
-      setBlockchainService(service);
-      setIsMetaMaskConnected(true);
-    }
-  };
+  // Add this to your existing useEffect section
+  useEffect(() => {
+    const initBlockchain = async () => {
+      const service = new BlockchainService();
+      const connected = await service.initMetaMask();
 
-  initBlockchain();
-}, []);
+      if (connected) {
+        setBlockchainService(service);
+        setIsMetaMaskConnected(true);
+      }
+    };
+
+    initBlockchain();
+  }, []);
 
   // Get user data from localStorage when component mounts
   useEffect(() => {
@@ -171,21 +176,43 @@ useEffect(() => {
         !files.some((existingFile) => existingFile.name === newFile.name)
     );
 
+    // Set default priority for new files
+    const newPriorities = { ...filePriorities };
+    filteredFiles.forEach((file) => {
+      newPriorities[file.name] = "User"; // Default priority
+    });
+    setFilePriorities(newPriorities);
+
     // Add new files to existing files
     setFiles((prevFiles) => [...prevFiles, ...filteredFiles]);
   };
 
   const removeFile = (indexToRemove) => {
+    const fileToRemove = files[indexToRemove];
+
     setFiles((prevFiles) =>
       prevFiles.filter((_, index) => index !== indexToRemove)
     );
 
-    // Also remove the file's progress
+    // Also remove the file's progress and priority
     setUploadProgress((prev) => {
       const newProgress = { ...prev };
-      delete newProgress[files[indexToRemove].name];
+      delete newProgress[fileToRemove.name];
       return newProgress;
     });
+
+    setFilePriorities((prev) => {
+      const newPriorities = { ...prev };
+      delete newPriorities[fileToRemove.name];
+      return newPriorities;
+    });
+  };
+
+  const handlePriorityChange = (fileName, priority) => {
+    setFilePriorities((prev) => ({
+      ...prev,
+      [fileName]: priority,
+    }));
   };
 
   const handleDragEnter = (e) => {
@@ -230,44 +257,44 @@ useEffect(() => {
 
   const handleUploadClick = async () => {
     if (files.length === 0) return;
-  
+
     // Check if a sub-department is selected
     if (!selectedSubDepartment) {
       alert("Please select a department and sub-department before uploading.");
       return;
     }
-  
+
     // Check if MetaMask is connected
     if (!blockchainService) {
       alert("Please connect to MetaMask to upload files.");
       return;
     }
-  
+
     setIsUploading(true);
-  
+
     try {
       // Step 1: Encrypt each file
       const encryptedFiles = [];
       const formData = new FormData();
-  
+
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-  
+
         // Update progress to show encryption is happening
         setUploadProgress((prev) => ({
           ...prev,
           [file.name]: 10, // Show 10% progress for encryption start
         }));
-  
+
         // Encrypt the file
         const { encryptedBlob, key, iv } = await encryptFile(file);
-  
+
         // Update progress
         setUploadProgress((prev) => ({
           ...prev,
           [file.name]: 30, // Encryption complete - 30%
         }));
-  
+
         // Add to our tracking array
         encryptedFiles.push({
           originalName: file.name,
@@ -275,11 +302,11 @@ useEffect(() => {
           key,
           iv,
         });
-  
+
         // Add to form data for upload
         formData.append("files", encryptedBlob, `${file.name}.encrypted`);
       }
-  
+
       // Step 2: Upload encrypted files to Azure Blob Storage
       setUploadProgress((prev) => {
         const newProgress = { ...prev };
@@ -288,18 +315,18 @@ useEffect(() => {
         });
         return newProgress;
       });
-  
+
       const uploadResponse = await fetch("http://localhost:5000/uploadFile", {
         method: "POST",
         body: formData,
       });
-  
+
       if (!uploadResponse.ok) {
         throw new Error("Failed to upload files to Azure");
       }
-  
+
       const uploadResult = await uploadResponse.json();
-  
+
       setUploadProgress((prev) => {
         const newProgress = { ...prev };
         files.forEach((file) => {
@@ -307,11 +334,11 @@ useEffect(() => {
         });
         return newProgress;
       });
-  
+
       // Step 3: Save encryption data in the database and blockchain
       for (let i = 0; i < uploadResult.files.length; i++) {
         const fileUploadInfo = uploadResult.files[i];
-  
+
         // Find matching encrypted file info
         const originalFileName = fileUploadInfo.originalName.replace(
           ".encrypted",
@@ -322,7 +349,7 @@ useEffect(() => {
         );
         const arrayBufferToBase64 = (buffer) => {
           if (!buffer) return "";
-  
+
           let binary = "";
           const bytes = new Uint8Array(buffer);
           for (let i = 0; i < bytes.byteLength; i++) {
@@ -330,36 +357,38 @@ useEffect(() => {
           }
           return window.btoa(binary);
         };
-  
+
         if (encryptedFileInfo) {
           // Prepare encryption key for blockchain
-          const encryptionKey = 
+          const encryptionKey =
             typeof encryptedFileInfo.key === "string"
               ? encryptedFileInfo.key
               : arrayBufferToBase64(encryptedFileInfo.key);
-          
+
           console.log(`Encryption key for ${originalFileName}:`, encryptionKey);
 
           // Generate blockchain hash for encryption key
           const encryptionKeyHash = Web3.utils.sha3(encryptionKey);
-  
+
           try {
+            await blockchainService.debugContractSetup();
             // Register file on blockchain
-            const blockchainResult = await blockchainService.registerFileOnBlockchain(
-              originalFileName,
-              encryptionKey
-            );
-  
+            const blockchainResult =
+              await blockchainService.registerFileOnBlockchain(
+                originalFileName,
+                encryptionKey
+              );
+
             // Update blockchain status
             setBlockchainStatus((prev) => ({
               ...prev,
               [originalFileName]: {
-                status: 'Blockchain Registered',
+                status: "Blockchain Registered",
                 fileId: blockchainResult.fileId,
-                transactionHash: blockchainResult.transactionHash  
-              }
+                transactionHash: blockchainResult.transactionHash,
+              },
             }));
-  
+
             // Save encryption data in database
             const saveDataResponse = await fetch(
               "http://localhost:5000/saveEncryptionData",
@@ -379,12 +408,12 @@ useEffect(() => {
                       : arrayBufferToBase64(encryptedFileInfo.iv),
                   userId: userId,
                   sousDepId: selectedSubDepartment,
-                  transactionHash: blockchainResult.transactionHash // Save full blockchain file ID
+                  priority: filePriorities[originalFileName] || "User", // Include priority with default
+                  transactionHash: blockchainResult.transactionHash,
                 }),
               }
             );
-            
-  
+
             if (!saveDataResponse.ok) {
               const errorData = await saveDataResponse.json();
               console.error("Error response from server:", errorData);
@@ -394,37 +423,37 @@ useEffect(() => {
                 }`
               );
             }
-  
+
             const saveResult = await saveDataResponse.json();
             console.log("Encryption data saved:", saveResult);
-  
+
             // Update progress to 100% for this file
             setUploadProgress((prev) => ({
               ...prev,
               [originalFileName]: 100,
             }));
           } catch (blockchainError) {
-            console.error('Blockchain registration failed:', blockchainError);
-            
+            console.error("Blockchain registration failed:", blockchainError);
+
             // Update blockchain status for failed registration
             setBlockchainStatus((prev) => ({
               ...prev,
               [originalFileName]: {
-                status: 'Blockchain Registration Failed',
-                error: blockchainError.message
-              }
+                status: "Blockchain Registration Failed",
+                error: blockchainError.message,
+              },
             }));
-  
+
             // Optionally, you might want to throw or handle this error differently
             throw blockchainError;
           }
         }
       }
-  
+
       // Success!
       setIsUploaded(true);
       setIsUploading(false);
-  
+
       // Clear form after short delay
       setTimeout(() => {
         if (uploadResult.files.length === files.length) {
@@ -439,7 +468,7 @@ useEffect(() => {
       alert(`Error: ${error.message}`);
     }
   };
-  
+
   const formatFileSize = (bytes) => {
     const kb = bytes / 1024;
     return kb < 1024 ? `${kb.toFixed(2)} KB` : `${(kb / 1024).toFixed(2)} MB`;
@@ -534,7 +563,7 @@ useEffect(() => {
           </button>
         </div>
 
-        <DropDownMenu/>
+        <DropDownMenu />
       </header>
 
       {/* Main content */}
@@ -630,29 +659,56 @@ useEffect(() => {
               {files.map((file, index) => (
                 <li
                   key={index}
-                  className="file-item"
+                  className={`file-item priority-${
+                    filePriorities[file.name] || "User"
+                  }`}
                   draggable
                   onDragStart={() => handleDragStart(index)}
                   onDragEnter={() => handleDragEnterItem(index)}
                   onDragEnd={handleDragEnd}
                 >
-                  <span>{file.name}</span>
-                  <span className="file-size">{formatFileSize(file.size)}</span>
-                  {uploadProgress[file.name] > 0 &&
-                    uploadProgress[file.name] < 100 && (
-                      <div className="progress-bar">
-                        <div
-                          className="progress"
-                          style={{ width: `${uploadProgress[file.name]}%` }}
-                        ></div>
-                      </div>
-                    )}
-                  <button
-                    className="remove-btn"
-                    onClick={() => removeFile(index)}
-                  >
-                    Remove
-                  </button>
+                  <div className="file-info">
+                    <span>{file.name}</span>
+                    <span className="file-size">
+                      {formatFileSize(file.size)}
+                    </span>
+                  </div>
+
+                  <div className="file-controls">
+                    <div className="priority-selector">
+                      <label htmlFor={`priority-${index}`}>Priority:</label>
+                      <select
+                        id={`priority-${index}`}
+                        value={filePriorities[file.name] || "User"}
+                        onChange={(e) =>
+                          handlePriorityChange(file.name, e.target.value)
+                        }
+                        className="priority-select"
+                      >
+                        {priorityOptions.map((priority) => (
+                          <option key={priority} value={priority}>
+                            {priority}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {uploadProgress[file.name] > 0 &&
+                      uploadProgress[file.name] < 100 && (
+                        <div className="progress-bar">
+                          <div
+                            className="progress"
+                            style={{ width: `${uploadProgress[file.name]}%` }}
+                          ></div>
+                        </div>
+                      )}
+                    <button
+                      className="remove-btn"
+                      onClick={() => removeFile(index)}
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

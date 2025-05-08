@@ -114,34 +114,102 @@ sanitizeKey(key) {
 
 // Modify registerFileOnBlockchain method
 async registerFileOnBlockchain(fileName, encryptionKey) {
-    if (!this.contract || !this.account) {
-        throw new Error('Blockchain not initialized');
-    }
+  if (!this.contract || !this.account) {
+      throw new Error('Blockchain not initialized');
+  }
 
-    try {
-        // Validate key
-        this.validateKey(encryptionKey);
+  try {
+      // Validate and sanitize key
+      this.validateKey(encryptionKey);
+      const sanitizedKey = this.sanitizeKey(encryptionKey);
 
-        // Sanitize key
-        const sanitizedKey = this.sanitizeKey(encryptionKey);
+      console.log('Current account:', this.account);
+      console.log('Contract address:', this.contract.options.address);
 
-        // Register file with sanitized key
-        const result = await this.contract.methods.registerFile(
-            fileName, 
-            sanitizedKey
-        ).send({ from: this.account });
+      // First, let's check if the user is an uploader
+      try {
+          const isUploaderStatus = await this.contract.methods.isUploader(this.account).call();
+          console.log('Is user an uploader?', isUploaderStatus);
+          
+          if (!isUploaderStatus) {
+              // If not an uploader, we might need to add them first
+              console.warn('User is not an authorized uploader');
+              // You might want to handle this case differently
+          }
+      } catch (error) {
+          console.error('Error checking uploader status:', error);
+      }
 
-        // Extract file ID from event
-        const fileId = result.events.FileRegistered.returnValues.fileId;
+      // Try to send the transaction directly without estimating gas first
+      console.log('Sending transaction...');
+      
+      try {
+          const receipt = await this.contract.methods.registerFile(
+              fileName,
+              sanitizedKey
+          ).send({
+              from: this.account,
+              gas: 800000, // Increase gas limit
+              gasPrice: '20000000000' // 20 Gwei
+          });
 
-        return {
-            fileId: fileId,
-            transactionHash: result.transactionHash
-        };
-    } catch (error) {
-        console.error('Blockchain file registration error:', error);
-        throw error;
-    }
+          console.log('Transaction receipt:', receipt);
+
+          // Try to get fileId from receipt
+          let fileId;
+
+          // Method 1: From events
+          if (receipt.events && receipt.events.FileRegistered) {
+              fileId = receipt.events.FileRegistered.returnValues.fileId;
+          } 
+          // Method 2: From transaction logs
+          else if (receipt.logs && receipt.logs.length > 0) {
+              // The FileRegistered event signature
+              const eventSignature = this.web3.utils.sha3('FileRegistered(bytes32,address,string,string)');
+              
+              for (const log of receipt.logs) {
+                  if (log.topics[0] === eventSignature) {
+                      // fileId is the first indexed parameter (topics[1])
+                      fileId = log.topics[1];
+                      break;
+                  }
+              }
+          }
+
+          // Method 3: Get from user files
+          if (!fileId) {
+              try {
+                  const userFiles = await this.contract.methods.getUserFiles().call({ from: this.account });
+                  if (userFiles && userFiles.length > 0) {
+                      fileId = userFiles[userFiles.length - 1];
+                  }
+              } catch (error) {
+                  console.error('Error fetching user files:', error);
+              }
+          }
+
+          if (!fileId) {
+              // Generate a fileId locally as a fallback
+              const timestamp = Date.now();
+              const combinedString = `${fileName}-${this.account}-${timestamp}`;
+              fileId = this.web3.utils.sha3(combinedString);
+              console.warn('Generated local fileId as fallback:', fileId);
+          }
+
+          return {
+              fileId: fileId,
+              transactionHash: receipt.transactionHash
+          };
+
+      } catch (sendError) {
+          console.error('Transaction send error:', sendError);
+          throw sendError;
+      }
+
+  } catch (error) {
+      console.error('Blockchain file registration error:', error);
+      throw error;
+  }
 }
   async getFileMetadata(fileId) {
     // Verify blockchain connection
@@ -182,6 +250,39 @@ async registerFileOnBlockchain(fileName, encryptionKey) {
       throw error;
     }
   }
+  async debugContractSetup() {
+    try {
+        console.log('=== Contract Debug Info ===');
+        console.log('Web3 version:', this.web3.version);
+        console.log('Connected to network ID:', await this.web3.eth.net.getId());
+        console.log('Current block number:', await this.web3.eth.getBlockNumber());
+        console.log('Current account:', this.account);
+        console.log('Account balance:', await this.web3.eth.getBalance(this.account));
+        
+        // Check if contract exists at the address
+        const code = await this.web3.eth.getCode(this.contract.options.address);
+        console.log('Contract code exists:', code !== '0x');
+        
+        // Try to call a simple view function
+        try {
+            const owner = await this.contract.methods.owner().call();
+            console.log('Contract owner:', owner);
+        } catch (error) {
+            console.error('Error calling owner():', error);
+        }
+        
+        try {
+            const totalFiles = await this.contract.methods.totalFiles().call();
+            console.log('Total files:', totalFiles);
+        } catch (error) {
+            console.error('Error calling totalFiles():', error);
+        }
+        
+        console.log('=========================');
+    } catch (error) {
+        console.error('Debug error:', error);
+    }
+}
 
   // Cleanup method
   disconnect() {
@@ -191,5 +292,6 @@ async registerFileOnBlockchain(fileName, encryptionKey) {
     this.networkId = null;
   }
 }
+
 
 export default BlockchainService;

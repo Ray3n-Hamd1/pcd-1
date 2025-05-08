@@ -328,8 +328,8 @@ const contractABI = [{
 const web3 = new Web3('HTTP://127.0.0.1:7545');
 
 // Contract address (replace with your deployed contract address)
-const contractAddress = '0xd3b08A4DA519772A3E8D2f2E020f513366147f5e';
-
+//const contractAddress = '0xd3b08A4DA519772A3E8D2f2E020f513366147f5e';
+const contractAddress = '0x88f027c730b587AEf84710B0d2fA0420B1016D6E';
 // Create contract instance
 const contract = new web3.eth.Contract(contractABI, contractAddress);
 

@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from "react";
 import "./Import.css";
 import DropDownMenu from "./DropDownMenu";
-import BlockchainService from '../services/blockchainService';
-import { decryptFile } from '../utils/encryption';
+import BlockchainService from "../services/blockchainService";
+import { decryptFile } from "../utils/encryption";
 // Import Web3 at the top of the file
-import Web3 from 'web3';
+import Web3 from "web3";
 
 // Logo component
 const Logo = () => {
@@ -156,23 +155,70 @@ const SearchBar = ({ onSearch }) => {
 
 // Component for the document item in the list
 const DocumentItem = ({ file, onSelect, isSelected }) => {
+  // Add this at the beginning of the DocumentItem component
+  console.log("File properties:", {
+    id: file.id_fichier,
+    name: file.nom_fichier,
+    date: file.date_creation,
+    size: file.size,
+    priority: file.priorite,
+  });
+  // Get priority indicator color based on file.priorite
+  const getPriorityClass = () => {
+    if (!file.priorite) return "";
+
+    switch (file.priorite) {
+      case 1:
+        return "priority-user";
+      case 2:
+        return "priority-admin";
+      case 3:
+        return "priority-superadmin";
+      default:
+        return "";
+    }
+  };
+
+  // Get priority label based on file.priorite
+  const getPriorityLabel = () => {
+    if (!file.priorite) return "";
+
+    switch (file.priorite) {
+      case 1:
+        return "User";
+      case 2:
+        return "Admin";
+      case 3:
+        return "Super Admin";
+      default:
+        return "";
+    }
+  };
   // Format date if it's provided as a string
+  // Update the formatDate function in DocumentItem component
   const formatDate = (dateString) => {
-    if (!dateString) return "Unknown date";
+    if (!dateString) return "Date not available";
 
     try {
-      const date = new Date(dateString);
+      // Check if dateString is already a Date object
+      const date =
+        dateString instanceof Date ? dateString : new Date(dateString);
+
+      // Check if the date is valid
       if (isNaN(date.getTime())) {
-        return dateString; // Return as is if can't be parsed
+        console.log("Invalid date:", dateString);
+        return "Invalid date";
       }
+
+      // Format the date
       return date.toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "short",
         year: "numeric",
       });
     } catch (error) {
-      console.error("Error formatting date:", error);
-      return dateString; // Return as is if any error occurs
+      console.error("Error formatting date:", error, dateString);
+      return "Date error";
     }
   };
 
@@ -186,12 +232,35 @@ const DocumentItem = ({ file, onSelect, isSelected }) => {
 
   // Get file size - usually not stored in database, so show default
   const getFileSize = () => {
-    if (file.size) return file.size;
-    return "Unknown size";
+    if (file.size) {
+      // Format the size from bytes to KB or MB
+      const bytes = file.size;
+      if (bytes < 1024) {
+        return `${bytes} B`;
+      } else if (bytes < 1024 * 1024) {
+        return `${(bytes / 1024).toFixed(2)} KB`;
+      } else {
+        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+      }
+    }
+    return "Size unknown"; // Fallback
   };
+  const formatFileSize = (bytes) => {
+    if (!bytes || isNaN(bytes)) return "Unknown";
 
+    const kb = bytes / 1024;
+    if (kb < 1024) {
+      return `${kb.toFixed(2)} KB`;
+    } else {
+      return `${(kb / 1024).toFixed(2)} MB`;
+    }
+  };
   return (
-    <div className={`document-item ${isSelected ? "selected" : ""}`}>
+    <div
+      className={`document-item ${
+        isSelected ? "selected" : ""
+      } ${getPriorityClass()}`}
+    >
       <div className="document-info">
         <div className="document-icon">
           <svg
@@ -255,7 +324,12 @@ const DocumentItem = ({ file, onSelect, isSelected }) => {
         <div className="document-date">
           {formatDate(file.date_creation || file.date)}
         </div>
-        <div className="document-status">Encrypted</div>
+        <div className="document-status">
+          {file.priorite && (
+            <span className="document-priority">{getPriorityLabel()}</span>
+          )}
+          <span>Encrypted</span>
+        </div>
         <button className="document-select-btn" onClick={() => onSelect(file)}>
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -285,15 +359,31 @@ const FilePreview = ({ selectedFile }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [encryptionKey, setEncryptionKey] = useState(null);
   const [web3Instance, setWeb3Instance] = useState(null);
+  // Helper function to check if user has permission to access a file based on priority
 
+  // Get priority label based on file.priorite
+  const getPriorityLabel = () => {
+    if (!selectedFile || !selectedFile.priorite) return "";
+
+    switch (selectedFile.priorite) {
+      case 1:
+        return "User";
+      case 2:
+        return "Admin";
+      case 3:
+        return "Super Admin";
+      default:
+        return "";
+    }
+  };
   // Initialize blockchain service and Web3 when component mounts
   useEffect(() => {
     const initBlockchainService = async () => {
       try {
         // Initialize Web3
-        const web3 = new Web3('http://127.0.0.1:7545'); // Use your Ganache URL
+        const web3 = new Web3("http://127.0.0.1:7545"); // Use your Ganache URL
         setWeb3Instance(web3);
-        
+
         const service = new BlockchainService();
         const connected = await service.initMetaMask();
         if (connected) {
@@ -301,10 +391,12 @@ const FilePreview = ({ selectedFile }) => {
           console.log("MetaMask connected successfully");
         } else {
           console.error("Failed to connect to MetaMask");
-          setRetrievalError("Failed to connect to MetaMask. Please make sure it's installed and unlocked.");
+          setRetrievalError(
+            "Failed to connect to MetaMask. Please make sure it's installed and unlocked."
+          );
         }
       } catch (error) {
-        console.error('Blockchain connection error:', error);
+        console.error("Blockchain connection error:", error);
         setRetrievalError(`Failed to connect to blockchain: ${error.message}`);
       }
     };
@@ -327,15 +419,22 @@ const FilePreview = ({ selectedFile }) => {
     const retrieveBlockchainMetadata = async () => {
       if (selectedFile && selectedFile.blockchain_hash && blockchainService) {
         try {
-          console.log("Retrieving metadata for hash:", selectedFile.blockchain_hash);
+          console.log(
+            "Retrieving metadata for hash:",
+            selectedFile.blockchain_hash
+          );
           // Retrieve metadata from blockchain using file's blockchain hash
-          const metadata = await blockchainService.getFileMetadata(selectedFile.blockchain_hash);
+          const metadata = await blockchainService.getFileMetadata(
+            selectedFile.blockchain_hash
+          );
           console.log("Retrieved blockchain metadata:", metadata);
           setBlockchainMetadata(metadata);
           setRetrievalError(null);
         } catch (error) {
-          console.error('Blockchain metadata retrieval error:', error);
-          setRetrievalError(`Failed to retrieve blockchain metadata: ${error.message}`);
+          console.error("Blockchain metadata retrieval error:", error);
+          setRetrievalError(
+            `Failed to retrieve blockchain metadata: ${error.message}`
+          );
           setBlockchainMetadata(null);
         }
       }
@@ -348,347 +447,352 @@ const FilePreview = ({ selectedFile }) => {
 
   const handleRetrieveBlockchainKey = async () => {
     // IMMEDIATE DEBUG LOGS
-    
+
     console.log("Function called with selectedFile:", selectedFile);
     console.log("Function called with selectedFile:", selectedFile);
 
-  if (!selectedFile || !selectedFile.id_fichier) {
-    console.log("No file selected");
-    setRetrievalError('Please select a file first');
-    return;
-  }
-
-  setIsProcessing(true);
-  setRetrievalError(null);
-
-  try {
-    // Get the transaction hash using file ID
-    const response = await fetch(`http://localhost:5000/retrieveFile/${selectedFile.id_fichier}`);
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Failed to fetch transaction hash from database: ${response.status} ${response.statusText}`);
+    if (!selectedFile || !selectedFile.id_fichier) {
+      console.log("No file selected");
+      setRetrievalError("Please select a file first");
+      return;
     }
 
-    const data = await response.json();
-    const txHash = data.transactionHash; // Use the correct property name
+    setIsProcessing(true);
+    setRetrievalError(null);
 
-    if (!txHash) {
-      throw new Error('No transaction hash found for this file');
-    }
+    try {
+      // Get the transaction hash using file ID
+      const response = await fetch(
+        `http://localhost:5000/retrieveFile/${selectedFile.id_fichier}`
+      );
 
-    console.log("Retrieved transaction hash:", txHash);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          `Failed to fetch transaction hash from database: ${response.status} ${response.statusText}`
+        );
+      }
 
-    // Rest of your code for Web3 interaction...
-    const web3 = new Web3('http://127.0.0.1:7545');
-    const contractAddress = '0xfe526fB1A4aF3aDa856925a8ee248a13e772466D';
+      const data = await response.json();
+      const txHash = data.transactionHash; // Use the correct property name
+
+      if (!txHash) {
+        throw new Error("No transaction hash found for this file");
+      }
+
+      console.log("Retrieved transaction hash:", txHash);
+
+      // Rest of your code for Web3 interaction...
+      const web3 = new Web3("http://127.0.0.1:7545");
+      const contractAddress = "0x88f027c730b587AEf84710B0d2fA0420B1016D6E";
+      //const contractAddress = '0xfe526fB1A4aF3aDa856925a8ee248a13e772466D';
       const contractABI = [
         {
-            "inputs": [],
-            "stateMutability": "nonpayable",
-            "type": "constructor"
+          inputs: [],
+          stateMutability: "nonpayable",
+          type: "constructor",
         },
         {
-            "anonymous": false,
-            "inputs": [
-                {
-                    "indexed": true,
-                    "internalType": "bytes32",
-                    "name": "fileId",
-                    "type": "bytes32"
-                }
-            ],
-            "name": "FileArchived",
-            "type": "event"
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "bytes32",
+              name: "fileId",
+              type: "bytes32",
+            },
+          ],
+          name: "FileArchived",
+          type: "event",
         },
         {
-            "anonymous": false,
-            "inputs": [
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "bytes32",
+              name: "fileId",
+              type: "bytes32",
+            },
+            {
+              indexed: true,
+              internalType: "address",
+              name: "uploader",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "string",
+              name: "fileName",
+              type: "string",
+            },
+          ],
+          name: "FileRegistered",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "previousOwner",
+              type: "address",
+            },
+            {
+              indexed: true,
+              internalType: "address",
+              name: "newOwner",
+              type: "address",
+            },
+          ],
+          name: "OwnershipTransferred",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "uploader",
+              type: "address",
+            },
+          ],
+          name: "UploaderAdded",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "uploader",
+              type: "address",
+            },
+          ],
+          name: "UploaderRemoved",
+          type: "event",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "uploaderAddress",
+              type: "address",
+            },
+          ],
+          name: "addUploader",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "bytes32",
+              name: "_fileId",
+              type: "bytes32",
+            },
+          ],
+          name: "archiveFile",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "bytes32",
+              name: "_fileId",
+              type: "bytes32",
+            },
+          ],
+          name: "getFileMetadata",
+          outputs: [
+            {
+              components: [
                 {
-                    "indexed": true,
-                    "internalType": "bytes32",
-                    "name": "fileId",
-                    "type": "bytes32"
+                  internalType: "address",
+                  name: "uploader",
+                  type: "address",
                 },
                 {
-                    "indexed": true,
-                    "internalType": "address",
-                    "name": "uploader",
-                    "type": "address"
+                  internalType: "uint256",
+                  name: "uploadTimestamp",
+                  type: "uint256",
                 },
                 {
-                    "indexed": false,
-                    "internalType": "string",
-                    "name": "fileName",
-                    "type": "string"
-                }
-            ],
-            "name": "FileRegistered",
-            "type": "event"
-        },
-        {
-            "anonymous": false,
-            "inputs": [
-                {
-                    "indexed": true,
-                    "internalType": "address",
-                    "name": "previousOwner",
-                    "type": "address"
+                  internalType: "string",
+                  name: "fileName",
+                  type: "string",
                 },
                 {
-                    "indexed": true,
-                    "internalType": "address",
-                    "name": "newOwner",
-                    "type": "address"
-                }
-            ],
-            "name": "OwnershipTransferred",
-            "type": "event"
-        },
-        {
-            "anonymous": false,
-            "inputs": [
-                {
-                    "indexed": true,
-                    "internalType": "address",
-                    "name": "uploader",
-                    "type": "address"
-                }
-            ],
-            "name": "UploaderAdded",
-            "type": "event"
-        },
-        {
-            "anonymous": false,
-            "inputs": [
-                {
-                    "indexed": true,
-                    "internalType": "address",
-                    "name": "uploader",
-                    "type": "address"
-                }
-            ],
-            "name": "UploaderRemoved",
-            "type": "event"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "address",
-                    "name": "uploaderAddress",
-                    "type": "address"
-                }
-            ],
-            "name": "addUploader",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "bytes32",
-                    "name": "_fileId",
-                    "type": "bytes32"
-                }
-            ],
-            "name": "archiveFile",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "bytes32",
-                    "name": "_fileId",
-                    "type": "bytes32"
-                }
-            ],
-            "name": "getFileMetadata",
-            "outputs": [
-                {
-                    "components": [
-                        {
-                            "internalType": "address",
-                            "name": "uploader",
-                            "type": "address"
-                        },
-                        {
-                            "internalType": "uint256",
-                            "name": "uploadTimestamp",
-                            "type": "uint256"
-                        },
-                        {
-                            "internalType": "string",
-                            "name": "fileName",
-                            "type": "string"
-                        },
-                        {
-                            "internalType": "string",
-                            "name": "encryptionKeyHash",
-                            "type": "string"
-                        },
-                        {
-                            "internalType": "bool",
-                            "name": "isActive",
-                            "type": "bool"
-                        }
-                    ],
-                    "internalType": "struct FileEncryptionRegistry.FileMetadata",
-                    "name": "",
-                    "type": "tuple"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "getUserFiles",
-            "outputs": [
-                {
-                    "internalType": "bytes32[]",
-                    "name": "",
-                    "type": "bytes32[]"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "address",
-                    "name": "_address",
-                    "type": "address"
-                }
-            ],
-            "name": "isUploader",
-            "outputs": [
-                {
-                    "internalType": "bool",
-                    "name": "",
-                    "type": "bool"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "owner",
-            "outputs": [
-                {
-                    "internalType": "address",
-                    "name": "",
-                    "type": "address"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "string",
-                    "name": "_fileName",
-                    "type": "string"
+                  internalType: "string",
+                  name: "encryptionKeyHash",
+                  type: "string",
                 },
                 {
-                    "internalType": "string",
-                    "name": "_encryptionKeyHash",
-                    "type": "string"
-                }
-            ],
-            "name": "registerFile",
-            "outputs": [
-                {
-                    "internalType": "bytes32",
-                    "name": "",
-                    "type": "bytes32"
-                }
-            ],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "address",
-                    "name": "uploaderAddress",
-                    "type": "address"
-                }
-            ],
-            "name": "removeUploader",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "totalFiles",
-            "outputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "",
-                    "type": "uint256"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "address",
-                    "name": "newOwner",
-                    "type": "address"
-                }
-            ],
-            "name": "transferOwnership",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "address",
-                    "name": "",
-                    "type": "address"
-                }
-            ],
-            "name": "userProfiles",
-            "outputs": [
-                {
-                    "internalType": "bool",
-                    "name": "isUploader",
-                    "type": "bool"
+                  internalType: "bool",
+                  name: "isActive",
+                  type: "bool",
                 },
-                {
-                    "internalType": "uint256",
-                    "name": "totalFilesUploaded",
-                    "type": "uint256"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        }
-    ];
+              ],
+              internalType: "struct FileEncryptionRegistry.FileMetadata",
+              name: "",
+              type: "tuple",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "getUserFiles",
+          outputs: [
+            {
+              internalType: "bytes32[]",
+              name: "",
+              type: "bytes32[]",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "_address",
+              type: "address",
+            },
+          ],
+          name: "isUploader",
+          outputs: [
+            {
+              internalType: "bool",
+              name: "",
+              type: "bool",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "owner",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "string",
+              name: "_fileName",
+              type: "string",
+            },
+            {
+              internalType: "string",
+              name: "_encryptionKeyHash",
+              type: "string",
+            },
+          ],
+          name: "registerFile",
+          outputs: [
+            {
+              internalType: "bytes32",
+              name: "",
+              type: "bytes32",
+            },
+          ],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "uploaderAddress",
+              type: "address",
+            },
+          ],
+          name: "removeUploader",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "totalFiles",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "newOwner",
+              type: "address",
+            },
+          ],
+          name: "transferOwnership",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          name: "userProfiles",
+          outputs: [
+            {
+              internalType: "bool",
+              name: "isUploader",
+              type: "bool",
+            },
+            {
+              internalType: "uint256",
+              name: "totalFilesUploaded",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+      ];
       const transaction = await web3.eth.getTransaction(txHash);
 
       // Create contract instance
       const contract = new web3.eth.Contract(contractABI, contractAddress);
-  
+
       // Check if txHash is valid
       if (!txHash || !web3.utils.isHexStrict(txHash)) {
-        throw new Error('Invalid transaction hash retrieved from database');
+        throw new Error("Invalid transaction hash retrieved from database");
       }
-  
+
       try {
         console.log("Attempting to get transaction with hash:", txHash);
-        
+
         // Get transaction details
         let transaction;
         try {
@@ -698,130 +802,189 @@ const FilePreview = ({ selectedFile }) => {
           console.error("Error getting transaction:", txError);
           throw new Error(`Error retrieving transaction: ${txError.message}`);
         }
-        
+
         if (!transaction) {
           console.error("Transaction not found");
-          throw new Error(`Transaction with hash ${txHash} not found on the blockchain`);
+          throw new Error(
+            `Transaction with hash ${txHash} not found on the blockchain`
+          );
         }
-        
+
         try {
           const receipt = await web3.eth.getTransactionReceipt(txHash);
           console.log("Transaction receipt:", receipt);
         } catch (receiptError) {
-          console.warn("Failed to get transaction receipt, but continuing:", receiptError);
+          console.warn(
+            "Failed to get transaction receipt, but continuing:",
+            receiptError
+          );
         }
-        
-        console.log('\n📦 Transaction Information:');
-        console.log('=======================');
+
+        console.log("\n📦 Transaction Information:");
+        console.log("=======================");
         console.log(`Hash: ${transaction.hash}`);
         console.log(`Block Number: ${transaction.blockNumber}`);
         console.log(`From: ${transaction.from}`);
         console.log(`To: ${transaction.to}`);
-        console.log(`Input data length: ${transaction.input ? transaction.input.length : 'N/A'}`);
-    
+        console.log(
+          `Input data length: ${
+            transaction.input ? transaction.input.length : "N/A"
+          }`
+        );
+
         // Decode the input data - make sure the input data exists and has enough length
         if (!transaction.input || transaction.input.length < 10) {
-          console.error("Transaction input data is missing or invalid:", transaction.input);
-          
+          console.error(
+            "Transaction input data is missing or invalid:",
+            transaction.input
+          );
+
           // FALLBACK: If blockchain call fails, use the data from the database if it's already in key format
-          if (data.encryptionKey && typeof data.encryptionKey === 'string' && 
-             (data.encryptionKey.startsWith('{') || data.encryptionKey.includes('":"'))) {
-            console.log("Using encryption key directly from database as fallback");
+          if (
+            data.encryptionKey &&
+            typeof data.encryptionKey === "string" &&
+            (data.encryptionKey.startsWith("{") ||
+              data.encryptionKey.includes('":"'))
+          ) {
+            console.log(
+              "Using encryption key directly from database as fallback"
+            );
             setEncryptionKey(data.encryptionKey);
-            setDecryptionStatus('Key retrieved from database (blockchain access failed)');
+            setDecryptionStatus(
+              "Key retrieved from database (blockchain access failed)"
+            );
             return;
           }
-          
-          throw new Error('Transaction input data is missing or invalid');
+
+          throw new Error("Transaction input data is missing or invalid");
         }
-        
+
         try {
           const inputData = transaction.input.slice(10);
-          console.log("Input data for decoding:", inputData.substring(0, 100) + "...");
-          
+          console.log(
+            "Input data for decoding:",
+            inputData.substring(0, 100) + "..."
+          );
+
           const decodedParameters = web3.eth.abi.decodeParameters(
-            ['string', 'string'],
+            ["string", "string"],
             inputData
           );
-          
-          console.log('\n📄 Decoded Input Data:');
-          console.log('===================');
+
+          console.log("\n📄 Decoded Input Data:");
+          console.log("===================");
           console.log(`File Name: ${decodedParameters[0]}`);
-          console.log(`Encryption Key: ${decodedParameters[1] ? decodedParameters[1].substring(0, 20) + "..." : "N/A"}`);
-      
+          console.log(
+            `Encryption Key: ${
+              decodedParameters[1]
+                ? decodedParameters[1].substring(0, 20) + "..."
+                : "N/A"
+            }`
+          );
+
           // Store the actual encryption key
           setEncryptionKey(decodedParameters[1]);
-          setDecryptionStatus('Key retrieved successfully');
-          alert("Success! Encryption key retrieved. You can now decrypt the file.");
+          setDecryptionStatus("Key retrieved successfully");
+          alert(
+            "Success! Encryption key retrieved. You can now decrypt the file."
+          );
         } catch (decodeError) {
           console.error("Error decoding parameters:", decodeError);
-          throw new Error(`Failed to decode transaction data: ${decodeError.message}`);
+          throw new Error(
+            `Failed to decode transaction data: ${decodeError.message}`
+          );
         }
       } catch (error) {
-        console.error('Transaction retrieval error:', error);
+        console.error("Transaction retrieval error:", error);
         alert(`Error: ${error.message}`);
-        throw new Error(`Failed to retrieve or decode transaction: ${error.message}`);
+        throw new Error(
+          `Failed to retrieve or decode transaction: ${error.message}`
+        );
       }
     } catch (error) {
-      console.error('❌ Error:', error);
-      console.error('Error Details:', error.message);
+      console.error("❌ Error:", error);
+      console.error("Error Details:", error.message);
       setRetrievalError(`Failed to retrieve encryption key: ${error.message}`);
       setDecryptionStatus(null);
     } finally {
       setIsProcessing(false);
     }
   };
-  
+
   const handleDecryptAndDownload = async () => {
     try {
       setIsProcessing(true);
       setRetrievalError(null);
-  
+
       // Get metadata and IV
-      const metadataResponse = await fetch(`http://localhost:5000/retrieveFile/${selectedFile.id_fichier}`);
+      const metadataResponse = await fetch(
+        `http://localhost:5000/retrieveFile/${selectedFile.id_fichier}`
+      );
       if (!metadataResponse.ok) {
-        throw new Error('Failed to retrieve file metadata');
+        const errorText = await metadataResponse.text();
+        throw new Error(
+          `Failed to retrieve file metadata (${metadataResponse.status}): ${errorText}`
+        );
       }
       const metadata = await metadataResponse.json();
-      
+      console.log("Complete file metadata:", metadata);
+      console.log("Blob URL format:", metadata.blobUrl);
+
       // Log metadata for debugging
       console.log("Retrieved metadata:", {
         iv: metadata.iv,
         ivLength: metadata.iv ? metadata.iv.length : 0,
-        key: encryptionKey ? encryptionKey.substring(0, 20) + '...' : 'missing'
+        key: encryptionKey ? encryptionKey.substring(0, 20) + "..." : "missing",
       });
-  
+
       if (!metadata.iv || !encryptionKey) {
-        throw new Error('Missing IV or encryption key');
+        throw new Error("Missing IV or encryption key");
       }
-  
+
       // Get the encrypted file
-      const fileResponse = await fetch(`http://localhost:5000/downloadFile/${selectedFile.id_fichier}`);
+      const fileResponse = await fetch(
+        `http://localhost:5000/downloadFile/${selectedFile.id_fichier}`
+      );
+
       if (!fileResponse.ok) {
-        throw new Error('Failed to download encrypted file');
+        let errorDetail;
+        try {
+          const errorJson = await fileResponse.json();
+          errorDetail =
+            errorJson.message || errorJson.details || JSON.stringify(errorJson);
+        } catch (parseError) {
+          errorDetail = await fileResponse.text();
+        }
+
+        throw new Error(
+          `Failed to download encrypted file (${fileResponse.status}): ${errorDetail}`
+        );
       }
-      
+
       const encryptedBlob = await fileResponse.blob();
-  
+
       // Attempt decryption
       const decryptedFile = await decryptFile(
         encryptedBlob,
         encryptionKey,
         metadata.iv
       );
-  
+
       // Download the decrypted file
-      const originalFileName = selectedFile.nom_fichier.replace('.encrypted', '');
-      const downloadLink = document.createElement('a');
+      const originalFileName = selectedFile.nom_fichier.replace(
+        ".encrypted",
+        ""
+      );
+      const downloadLink = document.createElement("a");
       downloadLink.href = URL.createObjectURL(decryptedFile);
       downloadLink.download = originalFileName;
       document.body.appendChild(downloadLink);
       downloadLink.click();
       document.body.removeChild(downloadLink);
-  
-      setDecryptionStatus('File decrypted and downloaded successfully');
+
+      setDecryptionStatus("File decrypted and downloaded successfully");
     } catch (error) {
-      console.error('Decryption process error:', error);
+      console.error("Decryption process error:", error);
       setRetrievalError(`Decryption failed: ${error.message}`);
     } finally {
       setIsProcessing(false);
@@ -842,12 +1005,11 @@ const FilePreview = ({ selectedFile }) => {
     if (selectedFile.size) return selectedFile.size;
     return "Unknown size";
   };
- 
 
   // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return "";
-    
+
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) {
@@ -856,7 +1018,7 @@ const FilePreview = ({ selectedFile }) => {
       return date.toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "short",
-        year: "numeric"
+        year: "numeric",
       });
     } catch (error) {
       return dateString;
@@ -927,31 +1089,44 @@ const FilePreview = ({ selectedFile }) => {
             {selectedFile.date_creation && (
               <div className="file-detail">
                 <span className="detail-label">Uploaded:</span>
-                <span className="detail-value">{formatDate(selectedFile.date_creation)}</span>
+                <span className="detail-value">
+                  {formatDate(selectedFile.date_creation)}
+                </span>
               </div>
             )}
-            
+            {selectedFile.priorite && (
+              <div className="file-detail">
+                <span className="detail-label">Priority:</span>
+                <span className="detail-value">{getPriorityLabel()}</span>
+              </div>
+            )}
             {selectedFile.sous_departement_name && (
               <div className="file-detail">
                 <span className="detail-label">Sub-Department:</span>
-                <span className="detail-value">{selectedFile.sous_departement_name}</span>
+                <span className="detail-value">
+                  {selectedFile.sous_departement_name}
+                </span>
               </div>
             )}
-            
+
             {selectedFile.departement_name && (
               <div className="file-detail">
                 <span className="detail-label">Department:</span>
-                <span className="detail-value">{selectedFile.departement_name}</span>
+                <span className="detail-value">
+                  {selectedFile.departement_name}
+                </span>
               </div>
             )}
-            
+
             {selectedFile.uploaded_by_name && (
               <div className="file-detail">
                 <span className="detail-label">Uploaded by:</span>
-                <span className="detail-value">{selectedFile.uploaded_by_name}</span>
+                <span className="detail-value">
+                  {selectedFile.uploaded_by_name}
+                </span>
               </div>
             )}
-            
+
             {selectedFile.chemin_stockage && (
               <div className="file-detail">
                 <span className="detail-label">Storage:</span>
@@ -962,38 +1137,40 @@ const FilePreview = ({ selectedFile }) => {
             {selectedFile.blockchain_hash && (
               <div className="file-detail">
                 <span className="detail-label">Blockchain Hash:</span>
-                <span className="detail-value">{`${selectedFile.blockchain_hash.substring(0, 8)}...`}</span>
+                <span className="detail-value">{`${selectedFile.blockchain_hash.substring(
+                  0,
+                  8
+                )}...`}</span>
               </div>
             )}
           </div>
-          
-          {retrievalError && <div className="error-message">{retrievalError}</div>}
-          {decryptionStatus && <div className="success-message">{decryptionStatus}</div>}
-          
-          <button 
-            className="btn-retrieve" 
-            
+
+          {retrievalError && (
+            <div className="error-message">{retrievalError}</div>
+          )}
+          {decryptionStatus && (
+            <div className="success-message">{decryptionStatus}</div>
+          )}
+
+          <button
+            className="btn-retrieve"
             onClick={handleRetrieveBlockchainKey}
-          
           >
-            {isProcessing && decryptionStatus !== 'Key retrieved successfully' ? 'Retrieving key...' : 'Retrieve key from blockchain'}
+            {isProcessing && decryptionStatus !== "Key retrieved successfully"
+              ? "Retrieving key..."
+              : "Retrieve key from blockchain"}
           </button>
-          
-          <button 
-            className="btn-decrypt" 
-            onClick={handleDecryptAndDownload}
-            
-          >
-            {isProcessing && decryptionStatus === 'Key retrieved successfully' ? 'Decrypting...' : 'Decrypt and download'}
+
+          <button className="btn-decrypt" onClick={handleDecryptAndDownload}>
+            {isProcessing && decryptionStatus === "Key retrieved successfully"
+              ? "Decrypting..."
+              : "Decrypt and download"}
           </button>
         </>
       )}
     </div>
   );
 };
-
-
-
 
 // Main app component
 const Import = () => {
@@ -1010,6 +1187,46 @@ const Import = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [error, setError] = useState(null);
+  const userCanAccessFile = (file) => {
+    console.log("Checking file access:", {
+      fileName: file.nom_fichier || file.name,
+      filePriority: file.priorite,
+      userRole: userRole,
+    });
+    // If file has no priority, default to allowing access
+    if (!file.priorite) return true;
+
+    // User role permission mapping:
+    // User role can only access User priority (1)
+    // Admin role can access User and Admin priorities (1, 2)
+    // Super Admin role can access all priorities (1, 2, 3)
+
+    switch (userRole) {
+      case "superadmin":
+        return true; // Super admin can access all files
+      case "admin":
+        return file.priorite <= 2; // Admin can access User and Admin priority files
+      case "user":
+      default:
+        return file.priorite === 1; // Regular users can only access User priority files
+    }
+  };
+  // Filter files based on search term and user role (priority access)
+  useEffect(() => {
+    // First filter by user role/priority
+    const accessibleFiles = files.filter((file) => userCanAccessFile(file));
+
+    // Then filter by search term if provided
+    if (!searchTerm) {
+      setFilteredFiles(accessibleFiles);
+    } else {
+      const filtered = accessibleFiles.filter((file) => {
+        const fileName = file.nom_fichier || file.name || "";
+        return fileName.toLowerCase().includes(searchTerm.toLowerCase());
+      });
+      setFilteredFiles(filtered);
+    }
+  }, [files, searchTerm, userRole]);
 
   // Fetch user info and departments on component mount
   useEffect(() => {
@@ -1038,7 +1255,9 @@ const Import = () => {
       } catch (error) {
         console.error("Error fetching user data:", error);
         setLoading(false);
-        setError("Error loading user data. Please refresh the page or log in again.");
+        setError(
+          "Error loading user data. Please refresh the page or log in again."
+        );
       }
     };
 
@@ -1066,17 +1285,6 @@ const Import = () => {
   }, [selectedSubDepartment]);
 
   // Filter files based on search term
-  useEffect(() => {
-    if (!searchTerm) {
-      setFilteredFiles(files);
-    } else {
-      const filtered = files.filter((file) => {
-        const fileName = file.nom_fichier || file.name || "";
-        return fileName.toLowerCase().includes(searchTerm.toLowerCase());
-      });
-      setFilteredFiles(filtered);
-    }
-  }, [files, searchTerm]);
 
   // Functions to fetch departments based on user role
   const fetchSuperAdminDepartments = async (id) => {
@@ -1084,11 +1292,13 @@ const Import = () => {
       const response = await fetch(
         `http://localhost:5000/superadmin/${id}/departments`
       );
-      
+
       if (!response.ok) {
-        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        throw new Error(
+          `Server returned ${response.status}: ${response.statusText}`
+        );
       }
-      
+
       const data = await response.json();
       setDepartments(data);
       setLoading(false);
@@ -1105,11 +1315,13 @@ const Import = () => {
       const response = await fetch(
         `http://localhost:5000/admin/${id}/departments`
       );
-      
+
       if (!response.ok) {
-        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        throw new Error(
+          `Server returned ${response.status}: ${response.statusText}`
+        );
       }
-      
+
       const data = await response.json();
       setDepartments(data);
       setLoading(false);
@@ -1126,11 +1338,13 @@ const Import = () => {
       const response = await fetch(
         `http://localhost:5000/user/${id}/departments`
       );
-      
+
       if (!response.ok) {
-        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        throw new Error(
+          `Server returned ${response.status}: ${response.statusText}`
+        );
       }
-      
+
       const data = await response.json();
       setDepartments(data);
       setLoading(false);
@@ -1149,11 +1363,13 @@ const Import = () => {
       const response = await fetch(
         `http://localhost:5000/departments/${departmentId}/sousdepartments`
       );
-      
+
       if (!response.ok) {
-        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        throw new Error(
+          `Server returned ${response.status}: ${response.statusText}`
+        );
       }
-      
+
       const data = await response.json();
       setSubDepartments(data);
       setLoading(false);
@@ -1280,7 +1496,9 @@ const Import = () => {
             </div>
           ) : filteredFiles.length === 0 ? (
             <div className="no-files-message">
-              No files found in this sub-department
+              {files.length === 0
+                ? "No files found in this sub-department"
+                : "No files found matching your access level or search criteria"}
             </div>
           ) : (
             <div className="document-list">
