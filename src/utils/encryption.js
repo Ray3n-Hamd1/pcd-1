@@ -6,7 +6,7 @@ function arrayBufferToHex(buffer) {
 }
 
 // Browser-compatible function to convert hex string to ArrayBuffer
-
+//hello
 
 // Updated encryption function for browser environments
 export async function encryptFile(file) {
