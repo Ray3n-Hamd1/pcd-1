@@ -4,7 +4,8 @@
     "migrate": "truffle migrate",
     "develop": "truffle develop",
     "test": "truffle test",
-    "ganache": "ganache"
+    "ganache": "ganache",
+    "preview": "vite preview"
   },
   "dependencies": {
     "web3": "^1.10.0"
