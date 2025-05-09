@@ -1,7 +1,7 @@
 import { useState } from "react";
 import "./DropDownMenu.css";
 import { useNavigate } from "react-router-dom";
-
+// import { useEffect } from "react";
 export default function DropDownMenu() {
   const user = JSON.parse(localStorage.getItem("user"));
   const token = localStorage.getItem("token");
